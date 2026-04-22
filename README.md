@@ -16,7 +16,7 @@ O **Obra Certa** é um Progressive Web App (PWA) projetado para resolver a gest�
 
 Nascido durante o curso de Análise e Desenvolvimento de Sistemas da FATEC Ferraz, o sistema foi concebido inicialmente com uma API robusta em Java (Spring Boot), com foco em isolamento **Multi-Tenant** e utilização de **Java Records** para a transferência segura de dados (DTOs).
 
-Visando otimizar a experiência no campo — um ambiente onde a conexão de rede oscila e o profissional (pedreiro, mestre de obras) precisa de uma interface tátil e imediata — a arquitetura evoluiu para um ecossistema Serverless. A migração para Next.js integrado ao Supabase reduziu a latência de rede, eliminou gargalos clássicos de infraestrutura (como bloqueios de CORS) e permitiu empacotar o sistema como um aplicativo nativo (PWA).
+Visando otimizar a experiência no campo, um ambiente onde a conexão de rede oscila e o profissional (pedreiro, mestre de obras) precisa de uma interface tátil e imediata, a arquitetura evoluiu para um ecossistema Serverless. A migração para Next.js integrado ao Supabase reduziu a latência de rede, eliminou gargalos clássicos de infraestrutura (como bloqueios de CORS) e permitiu empacotar o sistema como um aplicativo nativo (PWA).
 
 ## 🛠️ Tecnologias Utilizadas
 

@@ -1,14 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { supabase } from "../../lib/supabase";
 
 export default function Calculadora() {
   const [superficie, setSuperficie] = useState("piso");
-  const [material, setMaterial] = useState("Cerâmica");
+  const [material, setMaterial] = useState("");
   const [altura, setAltura] = useState("");
   const [largura, setLargura] = useState("");
   const [resultado, setResultado] = useState<{ quantidade: string; unidade: string; area: string } | null>(null);
+  const [projetos, setProjetos] = useState<{ id: number; titulo: string }[]>([]);
+  const [projetoSelecionado, setProjetoSelecionado] = useState("");
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    const buscarProjetos = async () => {
+      const { data } = await supabase.from("projetos").select("id, titulo");
+      if (data) setProjetos(data);
+    };
+    buscarProjetos();
+  }, []);
 
   const realizarCalculo = (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +42,7 @@ export default function Calculadora() {
       case "contrapiso":
       case "laje":
         qtdCalculada = areaTotal * 1.10;
-        unid = "m² (já com 10% de margem de quebra/recorte)";
+        unid = "m² (já c/ 10% de quebra)";
         break;
       case "parede":
       case "reboco":
@@ -53,6 +65,29 @@ export default function Calculadora() {
       unidade: unid,
       area: areaTotal.toFixed(2).replace(".", ","),
     });
+  };
+
+  const salvarNoProjeto = async () => {
+    if (!projetoSelecionado || !resultado) return;
+    setSalvando(true);
+
+    const nomeMaterial = material ? material : superficie; 
+    const quantidadeSalva = `${resultado.quantidade} ${resultado.unidade}`;
+
+    const { error } = await supabase.from("materiais_projeto").insert([
+      { 
+        projeto_id: parseInt(projetoSelecionado), 
+        nome: nomeMaterial, 
+        quantidade: quantidadeSalva 
+      }
+    ]);
+
+    if (!error) {
+      alert("Material salvo no projeto com sucesso!");
+    } else {
+      alert("Erro ao salvar: " + error.message);
+    }
+    setSalvando(false);
   };
 
   return (
@@ -131,14 +166,38 @@ export default function Calculadora() {
 
         {/* Resultado Exibido na Tela */}
         {resultado && (
-          <div className="mt-8 bg-green-50 border-2 border-green-500 p-6 rounded-xl">
-            <h2 className="text-2xl font-bold text-green-800 mb-4">Resultado:</h2>
-            <p className="text-lg text-gray-800 mb-2">
-              <strong>Área Total:</strong> {resultado.area} m²
-            </p>
-            <p className="text-xl text-gray-900">
-              <strong>Comprar:</strong> {resultado.quantidade} {resultado.unidade} de {material}
-            </p>
+          <div className="mt-6 p-4 bg-yellow-100 text-yellow-800 rounded-lg text-center shadow-inner animate-fade-in">
+            <h3 className="font-bold text-lg mb-1">Resultado:</h3>
+            <p className="text-2xl font-bold">{resultado.quantidade} <span className="text-base font-normal">{resultado.unidade}</span></p>
+            <p className="text-sm text-yellow-700 mt-1">Área total s/ quebra: {resultado.area} m²</p>
+
+            {/* --- BLOCO: SALVAR NO PROJETO --- */}
+            <div className="mt-4 pt-4 border-t border-yellow-300 text-left">
+              <label className="block text-sm font-semibold mb-2 text-yellow-900">
+                Vincular a uma obra existente:
+              </label>
+              
+              <select
+                className="w-full p-2 mb-3 rounded border border-yellow-400 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                value={projetoSelecionado}
+                onChange={(e) => setProjetoSelecionado(e.target.value)}
+              >
+                <option value="">Selecione um projeto...</option>
+                {projetos.map((proj) => (
+                  <option key={proj.id} value={proj.id}>
+                    {proj.titulo}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                onClick={salvarNoProjeto}
+                disabled={!projetoSelecionado || salvando}
+                className="w-full bg-yellow-600 text-white p-2 rounded font-bold hover:bg-yellow-700 disabled:opacity-50 transition-colors"
+              >
+                {salvando ? "Salvando..." : "💾 Salvar Material na Obra"}
+              </button>
+            </div>
           </div>
         )}
 

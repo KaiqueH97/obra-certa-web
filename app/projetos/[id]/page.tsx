@@ -165,7 +165,7 @@ export default function DetalhesDoProjeto() {
                         tarefa.concluida ? "bg-green-50 border-green-300" : "bg-white border-gray-200"
                       }`}
                     >
-                      <div className={`min-w-[2rem] h-8 rounded border-2 flex items-center justify-center ${
+                      <div className={`min-w-8 h-8 rounded border-2 flex items-center justify-center ${
                         tarefa.concluida ? "bg-green-500 border-green-500" : "bg-white border-gray-400"
                       }`}>
                         {tarefa.concluida && <span className="text-white font-bold text-xl">✓</span>}

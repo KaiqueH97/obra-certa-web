@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function Home() {
   const [email, setEmail] = useState("");
@@ -93,6 +94,19 @@ export default function Home() {
               <p className="text-center font-bold text-blue-800">{mensagem}</p>
             </div>
           )}
+
+          {/* Links para recuperação de senha e cadastro */}
+          <div className="mt-6 flex flex-col gap-3 text-center">
+            <Link href="/recuperar" className="text-gray-500 hover:text-orange-600 transition">
+              Esqueceu sua senha?
+            </Link>
+            <p className="text-gray-600">
+              Não tem uma conta?{" "}
+              <Link href="/cadastro" className="text-orange-600 font-bold hover:underline">
+                Cadastre-se aqui
+              </Link>
+            </p>
+          </div>
         </form>
       </div>
     </main>

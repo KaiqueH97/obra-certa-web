@@ -28,22 +28,6 @@ export default function Home() {
     }
   };
 
-  const handleCadastro = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMensagem("Criando sua conta...");
-    
-    const { error } = await supabase.auth.signUp({
-      email,
-      password: senha,
-    });
-
-    if (error) {
-      setMensagem("Erro ao cadastrar: " + error.message);
-    } else {
-      setMensagem("Conta criada! Você já pode fazer o login.");
-    }
-  };
-
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
       <div className="w-full max-w-md bg-white p-8 rounded-lg shadow-md border border-gray-200">
@@ -74,18 +58,13 @@ export default function Home() {
             />
           </div>
 
-          <div className="flex flex-col gap-4 mt-8">
+          {/* Entrar */}
+          <div className="mt-8">
             <button
               onClick={handleLogin}
               className="w-full bg-orange-600 text-white font-bold p-4 rounded-lg text-xl hover:bg-orange-700 transition"
             >
               Entrar
-            </button>
-            <button
-              onClick={handleCadastro}
-              className="w-full bg-slate-800 text-white font-bold p-4 rounded-lg text-xl hover:bg-slate-900 transition"
-            >
-              Criar Nova Conta
             </button>
           </div>
 

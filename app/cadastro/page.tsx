@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function Cadastro() {
+  const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [carregando, setCarregando] = useState(false);
@@ -18,6 +19,11 @@ export default function Cadastro() {
     const { error } = await supabase.auth.signUp({
       email,
       password: senha,
+      options: {
+        data: {
+          nome: nome,
+        }
+      }
     });
 
     if (error) {
@@ -34,6 +40,15 @@ export default function Cadastro() {
       <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-lg">
         <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">Criar Conta</h1>
         <form onSubmit={handleCadastro} className="flex flex-col gap-4">
+          {/* Nome */}
+          <input
+            type="text"
+            placeholder="Seu nome completo"
+            className="p-4 border rounded-lg text-black outline-none focus:ring-2 focus:ring-orange-600"
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            required
+          />
           <input
             type="email"
             placeholder="Seu e-mail"

@@ -7,13 +7,15 @@ import Link from "next/link";
 
 export default function Perfil() {
   const router = useRouter();
-  const [email, setEmail] = useState<string | null>("Carregando...");
+  const [nome, setNome] = useState<string | null>("Carregando..."); 
+  const [email, setEmail] = useState<string | null>("...");
 
   useEffect(() => {
     const carregarUsuario = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setEmail(user.email ?? "E-mail não encontrado");
+        setNome(user.user_metadata?.nome || "Usuário"); 
       }
     };
     
@@ -41,17 +43,17 @@ export default function Perfil() {
         {/* Card do Perfil */}
         <div className="bg-white p-8 rounded-xl shadow-md border border-gray-200 flex flex-col gap-8 items-center">
           
-          {/* Avatar Simples (Sem imagens pesadas) */}
+          {/* Avatar Simples */}
           <div className="w-24 h-24 bg-slate-200 rounded-full flex items-center justify-center border-4 border-slate-300">
             <span className="text-5xl">👷</span>
           </div>
 
-          {/* Informações */}
+          {/* Informações: Nome em destaque e E-mail menor */}
           <div className="text-center w-full">
-            <p className="text-gray-500 font-bold text-sm uppercase tracking-wider mb-1">
-              Usuário Conectado
-            </p>
-            <p className="text-2xl font-bold text-gray-900 wrap-break-word">
+            <h2 className="text-3xl font-black text-gray-900 mb-1 truncate">
+              {nome}
+            </h2>
+            <p className="text-gray-500 font-bold text-sm">
               {email}
             </p>
           </div>

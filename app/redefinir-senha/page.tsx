@@ -33,7 +33,7 @@ export default function RedefinirSenha() {
       alert("Erro ao redefinir: " + error.message);
     } else {
       alert("Senha alterada com sucesso! Agora você pode fazer login.");
-      router.push("/"); // Volta para o Login
+      router.push("/");
     }
     setCarregando(false);
   };

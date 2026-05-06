@@ -153,7 +153,7 @@ export default function DetalhesDoProjeto() {
             <div className="mb-12">
               <div className="flex justify-between items-end mb-4">
                 <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                  🛒 Materiais e Custos
+                  Materiais e Custos
                 </h2>
               </div>
 
@@ -216,7 +216,7 @@ export default function DetalhesDoProjeto() {
             {/* SEÇÃO 2: TAREFAS */}
             <div>
               <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                📋 Tarefas da Obra
+                Tarefas da Obra
               </h2>
               
               <form onSubmit={criarTarefa} className="flex gap-2 mb-6">

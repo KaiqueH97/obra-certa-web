@@ -77,13 +77,12 @@ export default function Calculadora() {
     let qtdCalculada = 0.0;
     let unid = "m²";
 
-    // Nova Lógica Baseada no Java
     switch (superficie) {
       case "piso":
       case "contrapiso":
       case "laje":
       case "telhado":
-        qtdCalculada = areaTotal * 1.10; // 10% de perda
+        qtdCalculada = areaTotal * 1.10;
         unid = "m² (já c/ 10% de quebra)";
         break;
       case "parede":
@@ -254,7 +253,7 @@ export default function Calculadora() {
                 disabled={!projetoSelecionado || salvando}
                 className="w-full bg-yellow-600 text-white p-4 rounded-lg text-lg font-bold hover:bg-yellow-700 disabled:opacity-50 transition-colors shadow-sm"
               >
-                {salvando ? "Salvando..." : "💾 Salvar Material na Obra"}
+                {salvando ? "Salvando..." : "Salvar Material na Obra"}
               </button>
             </div>
           </div>

@@ -87,7 +87,6 @@ export default function Projetos() {
     setCarregando(false);
   };
 
-  // --- D (DELETE) ---
   const excluirProjeto = async (id: number) => {
     const confirmacao = window.confirm(
       "Tem certeza que deseja excluir esta obra? Todas as tarefas e materiais vinculados poderão ser apagados também."

@@ -28,9 +28,7 @@ export default function DetalhesDoProjeto() {
   const [tarefas, setTarefas] = useState<Tarefa[]>([]);
   const [materiais, setMateriais] = useState<Material[]>([]);
   const [novaTarefa, setNovaTarefa] = useState("");
-  const [carregando, setCarregando] = useState(true);
-  
-  // ESTADO SENIOR: Controla qual aba está visível
+  const [carregando, setCarregando] = useState(true);  
   const [abaAtiva, setAbaAtiva] = useState<"materiais" | "tarefas">("materiais");
 
   const custoTotal = materiais.reduce((acumulador, item) => {
@@ -61,15 +59,27 @@ export default function DetalhesDoProjeto() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projetoId]);
 
-  const atualizarPreco = async (id: number, valorDigitado: string) => {
-    const precoNumerico = parseFloat(valorDigitado.replace(",", "."));
+const atualizarPreco = async (id: number, valorDigitado: string) => {
+    const valorLimpo = valorDigitado.replace(/\./g, "").replace(",", ".");
+    const precoNumerico = parseFloat(valorLimpo);
     const precoFinal = isNaN(precoNumerico) ? 0 : precoNumerico;
 
     setMateriais(prev => prev.map(item => 
       item.id === id ? { ...item, preco_total: precoFinal } : item
     ));
 
-    await supabase.from("materiais_projeto").update({ preco_total: precoFinal }).eq("id", id);
+    const { data, error } = await supabase
+      .from("materiais_projeto")
+      .update({ preco_total: precoFinal })
+      .eq("id", id)
+      .select();
+
+    if (error) {
+      alert("Erro do banco de dados: " + error.message);
+      console.error("Detalhe do erro:", error);
+    } else if (data && data.length === 0) {
+      alert("Aviso: O preço não foi salvo! O Supabase bloqueou a edição (Provavelmente falta configurar o RLS de UPDATE na tabela materiais_projeto).");
+    }
   };
 
   const criarTarefa = async (e: React.FormEvent) => {

@@ -157,7 +157,7 @@ export default function Calculadora() {
               value={superficie}
               onChange={(e) => {
                 setSuperficie(e.target.value);
-                setMaterial(""); // Reseta o material ao trocar de superfície
+                setMaterial("");
               }}
               required
             >
@@ -221,22 +221,22 @@ export default function Calculadora() {
           </button>
         </form>
 
-        {/* Resultado Exibido na Tela */}
+        {/* Resultado Exibido na Tela (Atualizado com A11y) */}
         {resultado && (
-          <div className="mt-6 p-6 bg-yellow-100 text-yellow-800 rounded-xl shadow-md border border-yellow-200 animate-fade-in">
-            <h3 className="font-bold text-xl mb-3 border-b border-yellow-300 pb-2">Resultado do Cálculo:</h3>
-            <p className="text-gray-700 font-semibold mb-1">Material: <span className="font-bold text-gray-900">{resultado.materialNome}</span></p>
-            <p className="text-3xl font-black text-yellow-900 mb-1">{resultado.quantidade} <span className="text-lg font-bold">{resultado.unidade}</span></p>
-            <p className="text-sm text-yellow-700 mt-1">Área total s/ quebra: {resultado.area} m²</p>
+          <div className="mt-6 p-6 bg-green-50 text-green-900 rounded-xl shadow-md border border-green-200 animate-fade-in">
+            <h3 className="font-bold text-xl mb-3 border-b border-green-300 pb-2 text-green-900">Resultado do Cálculo:</h3>
+            <p className="text-gray-800 font-semibold mb-1">Material: <span className="font-black text-gray-900">{resultado.materialNome}</span></p>
+            <p className="text-3xl font-black text-green-900 mb-1">{resultado.quantidade} <span className="text-lg font-bold">{resultado.unidade}</span></p>
+            <p className="text-sm text-green-800 mt-1 font-medium">Área total s/ quebra: {resultado.area} m²</p>
 
             {/* --- BLOCO: SALVAR NO PROJETO --- */}
-            <div className="mt-6 pt-5 border-t border-yellow-300 text-left">
-              <label className="block text-sm font-bold mb-2 text-yellow-900">
+            <div className="mt-6 pt-5 border-t border-green-300 text-left">
+              <label className="block text-sm font-bold mb-2 text-green-900">
                 Vincular a uma obra existente:
               </label>
               
               <select
-                className="w-full p-3 mb-4 rounded-lg border border-yellow-400 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-yellow-600 font-semibold"
+                className="w-full p-3 mb-4 rounded-lg border border-green-400 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-700 font-semibold"
                 value={projetoSelecionado}
                 onChange={(e) => setProjetoSelecionado(e.target.value)}
               >
@@ -251,7 +251,7 @@ export default function Calculadora() {
               <button
                 onClick={salvarNoProjeto}
                 disabled={!projetoSelecionado || salvando}
-                className="w-full bg-yellow-600 text-white p-4 rounded-lg text-lg font-bold hover:bg-yellow-700 disabled:opacity-50 transition-colors shadow-sm"
+                className="w-full bg-green-700 text-white p-4 rounded-lg text-lg font-bold hover:bg-green-800 disabled:opacity-50 transition-colors shadow-sm"
               >
                 {salvando ? "Salvando..." : "Salvar Material na Obra"}
               </button>

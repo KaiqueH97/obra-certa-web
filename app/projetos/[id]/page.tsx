@@ -22,14 +22,16 @@ interface Material {
 
 export default function DetalhesDoProjeto() {
   const params = useParams();
-  const projetoId = params.id; 
-
+  const projetoId = params.id;
   const [tituloObra, setTituloObra] = useState("Carregando...");
   const [tarefas, setTarefas] = useState<Tarefa[]>([]);
   const [materiais, setMateriais] = useState<Material[]>([]);
   const [novaTarefa, setNovaTarefa] = useState("");
   const [carregando, setCarregando] = useState(true);  
   const [abaAtiva, setAbaAtiva] = useState<"materiais" | "tarefas">("materiais");
+  const [materialEditando, setMaterialEditando] = useState<number | null>(null);
+  const [nomeEditado, setNomeEditado] = useState("");
+  const [qtdEditada, setQtdEditada] = useState("");
 
   const custoTotal = materiais.reduce((acumulador, item) => {
     const valor = typeof item.preco_total === 'string' 
@@ -59,7 +61,8 @@ export default function DetalhesDoProjeto() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projetoId]);
 
-const atualizarPreco = async (id: number, valorDigitado: string) => {
+  // Função intacta com o tratamento de erros que fizemos
+  const atualizarPreco = async (id: number, valorDigitado: string) => {
     const valorLimpo = valorDigitado.replace(/\./g, "").replace(",", ".");
     const precoNumerico = parseFloat(valorLimpo);
     const precoFinal = isNaN(precoNumerico) ? 0 : precoNumerico;
@@ -79,6 +82,42 @@ const atualizarPreco = async (id: number, valorDigitado: string) => {
       console.error("Detalhe do erro:", error);
     } else if (data && data.length === 0) {
       alert("Aviso: O preço não foi salvo! O Supabase bloqueou a edição (Provavelmente falta configurar o RLS de UPDATE na tabela materiais_projeto).");
+    }
+  };
+
+  const iniciarEdicaoMaterial = (item: Material) => {
+    setMaterialEditando(item.id);
+    setNomeEditado(item.nome);
+    setQtdEditada(item.quantidade);
+  };
+
+  const salvarEdicaoMaterial = async (id: number) => {
+    setMateriais(prev => prev.map(item => 
+      item.id === id ? { ...item, nome: nomeEditado, quantidade: qtdEditada } : item
+    ));
+
+    const { error } = await supabase
+      .from("materiais_projeto")
+      .update({ nome: nomeEditado, quantidade: qtdEditada })
+      .eq("id", id);
+
+    if (error) {
+      alert("Erro ao atualizar material: " + error.message);
+      carregarDadosDaObra();
+    }
+    setMaterialEditando(null);
+  };
+
+  const excluirMaterial = async (id: number) => {
+    if (!window.confirm("Deseja excluir este material do orçamento?")) return;
+
+    setMateriais(prev => prev.filter(item => item.id !== id));
+    
+    const { error } = await supabase.from("materiais_projeto").delete().eq("id", id);
+
+    if (error) {
+      alert("Erro ao excluir: " + error.message);
+      carregarDadosDaObra();
     }
   };
 
@@ -118,7 +157,7 @@ const atualizarPreco = async (id: number, valorDigitado: string) => {
           </Link>
         </div>
 
-        {/* MENU DE ABAS (Navegação Interna) */}
+        {/* MENU DE ABAS */}
         <div className="flex bg-gray-200 p-1 rounded-xl mb-8 shadow-inner">
           <button
             onClick={() => setAbaAtiva("materiais")}
@@ -159,26 +198,60 @@ const atualizarPreco = async (id: number, valorDigitado: string) => {
                       Nenhum material calculado para esta obra.
                     </p>
                   ) : (
-                    <ul className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden divide-y divide-gray-100">
+                    <ul className="space-y-4">
                       {materiais.map((item) => (
-                        <li key={item.id} className="p-4 flex flex-col gap-3">
-                          <div className="flex justify-between items-start">
-                            <p className="font-bold text-gray-800">{item.nome}</p>
-                            <span className="bg-yellow-100 text-yellow-800 py-1 px-3 rounded-full font-bold text-xs italic">
-                              {item.quantidade}
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center bg-gray-50 p-2 rounded-lg border border-gray-100">
-                            <label className="text-xs font-bold text-gray-500 uppercase">Preço Total:</label>
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              defaultValue={item.preco_total ? item.preco_total.toString().replace(".", ",") : ""}
-                              placeholder="0,00"
-                              onBlur={(e) => atualizarPreco(item.id, e.target.value)}
-                              className="w-24 p-1 text-right border-b-2 border-gray-200 font-bold text-green-700 outline-none focus:border-green-500 bg-transparent"
-                            />
-                          </div>
+                        <li key={item.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col gap-3">
+                          
+                          {materialEditando === item.id ? (
+                            /* MODO EDIÇÃO MATERIAL */
+                            <div className="flex flex-col gap-3 bg-orange-50 p-2 rounded-lg border border-orange-100">
+                              <input 
+                                className="w-full p-2 border border-orange-300 rounded text-black font-bold outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                                value={nomeEditado}
+                                onChange={(e) => setNomeEditado(e.target.value)}
+                                placeholder="Nome do material"
+                              />
+                              <input 
+                                className="w-full p-2 border border-orange-300 rounded text-black outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                                value={qtdEditada}
+                                onChange={(e) => setQtdEditada(e.target.value)}
+                                placeholder="Quantidade"
+                              />
+                              <div className="flex gap-2 mt-1">
+                                <button onClick={() => setMaterialEditando(null)} className="flex-1 bg-gray-200 text-gray-800 p-2 rounded-lg font-bold hover:bg-gray-300 transition">Cancelar</button>
+                                <button onClick={() => salvarEdicaoMaterial(item.id)} className="flex-1 bg-green-600 text-white p-2 rounded-lg font-bold hover:bg-green-700 transition">Salvar</button>
+                              </div>
+                            </div>
+                          ) : (
+                            /* MODO VISUALIZAÇÃO MATERIAL */
+                            <>
+                              <div className="flex justify-between items-start">
+                                <div className="flex flex-col">
+                                  <p className="font-bold text-gray-800 text-lg">{item.nome}</p>
+                                  <span className="bg-yellow-100 text-yellow-800 py-1 px-3 rounded-full font-bold text-xs italic mt-1 w-fit">
+                                    {item.quantidade}
+                                  </span>
+                                </div>
+                                {/* Botões Editar/Excluir */}
+                                <div className="flex flex-col gap-2">
+                                  <button onClick={() => iniciarEdicaoMaterial(item)} className="text-blue-600 font-bold text-xs hover:underline flex items-center justify-end gap-1">✏️ Editar</button>
+                                  <button onClick={() => excluirMaterial(item.id)} className="text-red-600 font-bold text-xs hover:underline flex items-center justify-end gap-1">🗑️ Excluir</button>
+                                </div>
+                              </div>
+                              
+                              <div className="flex justify-between items-center bg-gray-50 p-2 rounded-lg border border-gray-100">
+                                <label className="text-xs font-bold text-gray-500 uppercase">Preço Total:</label>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  defaultValue={item.preco_total ? item.preco_total.toString().replace(".", ",") : ""}
+                                  placeholder="0,00"
+                                  onBlur={(e) => atualizarPreco(item.id, e.target.value)}
+                                  className="w-24 p-1 text-right border-b-2 border-gray-200 font-bold text-green-700 outline-none focus:border-green-500 bg-transparent"
+                                />
+                              </div>
+                            </>
+                          )}
                         </li>
                       ))}
                     </ul>

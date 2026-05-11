@@ -7,9 +7,9 @@ O **Obra Certa** é um Progressive Web App (PWA) projetado para resolver a gest�
 <div align="center">
   <img src="./app/img/home.jpeg" width="250" alt="Tela Inicial do Obra Certa" />
   &nbsp;&nbsp;&nbsp;
-  <img src="./app/img/calculadora.jpeg" width="250" alt="Calculadora de Materiais" />
+  <img src="./app/img/calculadora2.jpeg" width="250" alt="Calculadora de Materiais" />
   &nbsp;&nbsp;&nbsp;
-  <img src="./app/img/tarefa.jpeg" width="250" alt="Gestão de Tarefas" />
+  <img src="./app/img/orcamentos.jpeg" width="250" alt="Gestão de Orçamentos" />
 </div>
 
 ## 🚀 Evolução da Arquitetura e Contexto

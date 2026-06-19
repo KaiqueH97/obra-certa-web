@@ -53,7 +53,18 @@ export default function Calculadora() {
   const [altura, setAltura] = useState("");
   const [largura, setLargura] = useState("");
   
-  const [resultado, setResultado] = useState<{ quantidade: string; unidade: string; area: string; materialNome: string } | null>(null);
+  // NOVOS ESTADOS PARA DIMENSÃO DO PISO
+  const [comprimentoPiso, setComprimentoPiso] = useState("");
+  const [larguraPiso, setLarguraPiso] = useState("");
+  
+  const [resultado, setResultado] = useState<{ 
+    quantidade: string; 
+    unidade: string; 
+    area: string; 
+    materialNome: string;
+    totalPecas?: number; // Nova propriedade opcional
+  } | null>(null);
+
   const [projetos, setProjetos] = useState<{ id: number; titulo: string }[]>([]);
   const [projetoSelecionado, setProjetoSelecionado] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -78,8 +89,9 @@ export default function Calculadora() {
     }
 
     const areaTotal = alt * larg;
-    let qtdCalculada = 0.0;
+    let qtdComQuebra = areaTotal;
     let unid = "m²";
+    let pecasEstimadas = 0;
 
     switch (superficie) {
       case "piso":
@@ -87,34 +99,43 @@ export default function Calculadora() {
       case "laje":
       case "telhado":
       case "impermeabilizacao":
-        qtdCalculada = areaTotal * 1.10;
+        qtdComQuebra = areaTotal * 1.10;
         unid = "m² (já c/ 10% de quebra/sobreposição)";
+        
+        // LÓGICA DE PEÇAS DE PISO
+        if (superficie === "piso" && comprimentoPiso && larguraPiso) {
+            const compM = parseFloat(comprimentoPiso) / 100;
+            const largM = parseFloat(larguraPiso) / 100;
+            const areaPeca = compM * largM;
+            pecasEstimadas = Math.ceil(qtdComQuebra / areaPeca);
+        }
         break;
       case "parede":
       case "reboco":
       case "revestimento":
-        qtdCalculada = areaTotal;
+        qtdComQuebra = areaTotal;
         unid = "m²";
         break;
       case "forro":
-        qtdCalculada = areaTotal;
+        qtdComQuebra = areaTotal;
         unid = "m² de forro";
         break;
       case "pintura":
-        qtdCalculada = areaTotal;
+        qtdComQuebra = areaTotal;
         unid = "m² (Consultar rendimento da lata)";
         break;
       default:
-        qtdCalculada = areaTotal;
+        qtdComQuebra = areaTotal;
         unid = "m²";
         break;
     }
 
     setResultado({
-      quantidade: qtdCalculada.toFixed(2).replace(".", ","),
+      quantidade: qtdComQuebra.toFixed(2).replace(".", ","),
       unidade: unid,
       area: areaTotal.toFixed(2).replace(".", ","),
       materialNome: material || OPCOES_MATERIAIS[superficie]?.nome || "Material",
+      totalPecas: pecasEstimadas > 0 ? pecasEstimadas : undefined
     });
   };
 
@@ -122,7 +143,9 @@ export default function Calculadora() {
     if (!projetoSelecionado || !resultado) return;
     setSalvando(true);
 
-    const quantidadeSalva = `${resultado.quantidade} ${resultado.unidade}`;
+    // Se houver cálculo de peças, salvamos essa info extra no nome ou quantidade
+    const infoPecas = resultado.totalPecas ? ` (~${resultado.totalPecas} peças)` : "";
+    const quantidadeSalva = `${resultado.quantidade} ${resultado.unidade}${infoPecas}`;
 
     const { error } = await supabase.from("materiais_projeto").insert([
       { 
@@ -189,6 +212,35 @@ export default function Calculadora() {
             </select>
           </div>
 
+          {/* CAMPOS CONDICIONAIS PARA TAMANHO DO PISO */}
+          {superficie === "piso" && (
+            <div className="bg-orange-50 p-4 rounded-lg border border-orange-200 animate-fade-in">
+              <p className="text-orange-800 font-bold text-sm mb-3 underline">Dimensões da Peça de Piso (Opcional):</p>
+              <div className="flex gap-4">
+                <div className="w-1/2">
+                  <label className="block text-gray-700 text-xs font-bold mb-1">Comprimento (cm)</label>
+                  <input
+                    type="number"
+                    className="w-full p-2 border border-orange-300 rounded bg-white text-black text-sm"
+                    value={comprimentoPiso}
+                    onChange={(e) => setComprimentoPiso(e.target.value)}
+                    placeholder="Ex: 60"
+                  />
+                </div>
+                <div className="w-1/2">
+                  <label className="block text-gray-700 text-xs font-bold mb-1">Largura (cm)</label>
+                  <input
+                    type="number"
+                    className="w-full p-2 border border-orange-300 rounded bg-white text-black text-sm"
+                    value={larguraPiso}
+                    onChange={(e) => setLarguraPiso(e.target.value)}
+                    placeholder="Ex: 60"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-4">
             <div className="w-1/2">
               <label className="block text-gray-800 text-xl font-bold mb-2">Altura (m)</label>
@@ -229,7 +281,17 @@ export default function Calculadora() {
             <h3 className="font-bold text-xl mb-3 border-b border-green-300 pb-2 text-green-900">Resultado do Cálculo:</h3>
             <p className="text-gray-800 font-semibold mb-1">Material: <span className="font-black text-gray-900">{resultado.materialNome}</span></p>
             <p className="text-3xl font-black text-green-900 mb-1">{resultado.quantidade} <span className="text-lg font-bold">{resultado.unidade}</span></p>
-            <p className="text-sm text-green-800 mt-1 font-medium">Área total s/ quebra: {resultado.area} m²</p>
+            
+            {/* EXIBIÇÃO ESTIMADA DE PEÇAS */}
+            {resultado.totalPecas && (
+                <div className="bg-green-200 p-3 rounded-lg mt-2 border border-green-300">
+                    <p className="text-green-900 font-bold">Estimativa de Peças:</p>
+                    <p className="text-2xl font-black">~ {resultado.totalPecas} unidades</p>
+                    <p className="text-xs italic">*Considerando o tamanho informado ({comprimentoPiso}x{larguraPiso}cm)</p>
+                </div>
+            )}
+
+            <p className="text-sm text-green-800 mt-3 font-medium">Área total s/ quebra: {resultado.area} m²</p>
 
             <div className="mt-6 pt-5 border-t border-green-300 text-left">
               <label className="block text-sm font-bold mb-2 text-green-900">

@@ -7,39 +7,43 @@ import { supabase } from "../../lib/supabase";
 const OPCOES_MATERIAIS: Record<string, { nome: string; tipos: string[] }> = {
   piso: {
     nome: "Piso",
-    tipos: ["Porcelanato", "Cerâmica", "Laminado", "Cimentício", "Vinílico", "Emborrachado", "Pedras"],
+    tipos: ["Porcelanato", "Cerâmica", "Laminado", "Cimentício", "Vinílico", "Emborrachado", "Pedras Naturais", "Epóxi (Porcelanato Líquido)"],
   },
   parede: {
     nome: "Parede",
-    tipos: ["Bloco cerâmico", "Drywall", "Bloco de concreto", "Tijolo ecológico", "Tijolinho maciço"],
+    tipos: ["Bloco cerâmico", "Drywall", "Bloco de concreto", "Tijolo ecológico", "Tijolinho maciço", "Placa Cimentícia"],
   },
   revestimento: {
     nome: "Revestimento",
-    tipos: ["Textura tradicional", "Textura Projetada", "Monocapa", "Massa Corrida", "Cerâmica/Azulejo"],
+    tipos: ["Textura tradicional", "Textura Projetada", "Monocapa", "Massa Corrida", "Cerâmica/Azulejo", "Pastilhas"],
   },
   reboco: {
     nome: "Reboco",
-    tipos: ["Tradicional (Cimento e Areia)", "Projetado", "Monocapa", "Gesso"],
+    tipos: ["Tradicional (Cimento e Areia)", "Projetado", "Monocapa", "Gesso", "Argamassa Polimérica"],
   },
   contrapiso: {
     nome: "Contrapiso",
-    tipos: ["Cimento", "Argamassa niveladora", "Concreto Usinado"],
+    tipos: ["Cimento", "Argamassa niveladora", "Argamassa Autonivelante", "Concreto Usinado"],
   },
   laje: {
     nome: "Laje",
-    tipos: ["Concreto armado", "Lajota cerâmica", "Pré-moldada (treliçada)", "EPS (Isopor)"],
+    tipos: ["Concreto armado", "Lajota cerâmica", "Pré-moldada (treliçada)", "EPS (Isopor)", "Laje Maciça"],
   },
   forro: {
     nome: "Forro",
-    tipos: ["Gesso acartonado (Drywall)", "Gesso em placas", "PVC", "Madeira", "Metálico"],
+    tipos: ["Gesso acartonado (Drywall)", "Gesso em placas", "PVC", "Madeira", "Metálico", "Fibra Mineral (Acústico)"],
   },
   telhado: {
     nome: "Telhado",
-    tipos: ["Telha Cerâmica (Barro)", "Telha de Fibrocimento", "Telha Metálica", "Shingle"],
+    tipos: ["Telha Cerâmica (Barro)", "Telha de Fibrocimento", "Telha Metálica", "Shingle", "Telha Ecológica (Tetra Pak)", "Policarbonato"],
   },
   pintura: {
     nome: "Pintura",
-    tipos: ["Tinta Acrílica", "Tinta Látex (PVA)", "Tinta Epóxi", "Esmalte Sintético"],
+    tipos: ["Tinta Acrílica", "Tinta Látex (PVA)", "Tinta Epóxi", "Esmalte Sintético", "Selador/Fundo Preparador"],
+  },
+  impermeabilizacao: {
+    nome: "Impermeabilização",
+    tipos: ["Manta Asfáltica", "Manta Líquida", "Argamassa Polimérica", "Emulsão Asfáltica"],
   }
 };
 
@@ -82,8 +86,9 @@ export default function Calculadora() {
       case "contrapiso":
       case "laje":
       case "telhado":
+      case "impermeabilizacao":
         qtdCalculada = areaTotal * 1.10;
-        unid = "m² (já c/ 10% de quebra)";
+        unid = "m² (já c/ 10% de quebra/sobreposição)";
         break;
       case "parede":
       case "reboco":
@@ -139,7 +144,6 @@ export default function Calculadora() {
     <main className="min-h-screen bg-gray-100 p-6 flex flex-col items-center pb-20">
       <div className="w-full max-w-md mt-4 animate-fade-in">
         
-        {/* Cabeçalho */}
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Calculadora</h1>
           <Link href="/home" className="text-orange-600 font-bold text-lg hover:underline">
@@ -147,7 +151,6 @@ export default function Calculadora() {
           </Link>
         </div>
 
-        {/* Formulário de Cálculo com Cascata */}
         <form onSubmit={realizarCalculo} className="bg-white p-6 rounded-xl shadow-md border border-gray-200 flex flex-col gap-6">
           
           <div>
@@ -157,7 +160,7 @@ export default function Calculadora() {
               value={superficie}
               onChange={(e) => {
                 setSuperficie(e.target.value);
-                setMaterial("");
+                setMaterial(""); 
               }}
               required
             >
@@ -221,7 +224,6 @@ export default function Calculadora() {
           </button>
         </form>
 
-        {/* Resultado Exibido na Tela (Atualizado com A11y) */}
         {resultado && (
           <div className="mt-6 p-6 bg-green-50 text-green-900 rounded-xl shadow-md border border-green-200 animate-fade-in">
             <h3 className="font-bold text-xl mb-3 border-b border-green-300 pb-2 text-green-900">Resultado do Cálculo:</h3>
@@ -229,7 +231,6 @@ export default function Calculadora() {
             <p className="text-3xl font-black text-green-900 mb-1">{resultado.quantidade} <span className="text-lg font-bold">{resultado.unidade}</span></p>
             <p className="text-sm text-green-800 mt-1 font-medium">Área total s/ quebra: {resultado.area} m²</p>
 
-            {/* --- BLOCO: SALVAR NO PROJETO --- */}
             <div className="mt-6 pt-5 border-t border-green-300 text-left">
               <label className="block text-sm font-bold mb-2 text-green-900">
                 Vincular a uma obra existente:

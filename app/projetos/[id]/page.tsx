@@ -288,7 +288,7 @@ export default function DetalhesDoProjeto() {
                     onChange={(e) => setNovaTarefa(e.target.value)}
                   />
                   <button type="submit" className="bg-slate-800 text-white font-bold px-6 rounded-xl hover:bg-slate-900 transition">
-                    Add
+                    Criar
                   </button>
                 </form>
 

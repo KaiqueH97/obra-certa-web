@@ -32,6 +32,8 @@ export default function DetalhesDoProjeto() {
   const [materialEditando, setMaterialEditando] = useState<number | null>(null);
   const [nomeEditado, setNomeEditado] = useState("");
   const [qtdEditada, setQtdEditada] = useState("");
+  const [nomeProfissional, setNomeProfissional] = useState("Profissional");
+  const [telefoneContato, setTelefoneContato] = useState("");
 
   const custoTotal = materiais.reduce((acumulador, item) => {
     const valor = typeof item.preco_total === 'string' 
@@ -52,6 +54,12 @@ export default function DetalhesDoProjeto() {
 
     const { data: dadosMateriais } = await supabase.from("materiais_projeto").select("*").eq("projeto_id", projetoId).order("id", { ascending: false });
     if (dadosMateriais) setMateriais(dadosMateriais);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user && user.user_metadata) {
+      if (user.user_metadata.nome) setNomeProfissional(user.user_metadata.nome);
+      if (user.user_metadata.telefone) setTelefoneContato(user.user_metadata.telefone);
+    }
 
     setCarregando(false);
   };
@@ -139,11 +147,34 @@ export default function DetalhesDoProjeto() {
     }
   };
 
-  const solicitarOrcamentoWhatsApp = () => {
-    let textoMensagem = `*Obra Certa - Orçamento: ${tituloObra}*\n\n`;
-    materiais.forEach(item => textoMensagem += `- ${item.nome}: ${item.quantidade}\n`);
-    window.open(`https://wa.me/?text=${encodeURIComponent(textoMensagem)}`, "_blank");
+const solicitarOrcamentoWhatsApp = () => {
+  // Emojis via Unicode escape — sem risco de corrompimento por encoding do arquivo
+  const e = {
+    worker:   '\u{1F477}\u200D\u2642\uFE0F', // 👷‍♂️
+    clipboard: '\u{1F4CB}',                  // 📋
+    bullet:   '\u25AA\uFE0F',                // ▪️
+    bulb:     '\u{1F4A1}',                   // 💡
+    phone:    '\u{1F4DE}',                   // 📞
   };
+
+  let textoMensagem = `Olá! Aqui é o ${nomeProfissional}. ${e.worker}\n`;
+  textoMensagem += `Segue a relação de materiais atualizada para a obra: *${tituloObra}*\n\n`;
+
+  textoMensagem += `*${e.clipboard} LISTA DE MATERIAIS:*\n`;
+  materiais.forEach(item => {
+    textoMensagem += `${e.bullet} *${item.nome}:* ${item.quantidade}\n`;
+  });
+
+  textoMensagem += `\n*${e.bulb} Obra Certa:* Planejamento inteligente, transparência e sem desperdício na sua construção.\n\n`;
+  textoMensagem += `Qualquer dúvida sobre as medidas, estou à disposição!\n`;
+
+  if (telefoneContato) {
+    textoMensagem += `${e.phone} Contato: ${telefoneContato}`;
+  }
+
+  const urlWhatsApp = `https://wa.me/?text=${encodeURIComponent(textoMensagem)}`;
+  window.open(urlWhatsApp, '_blank');
+};
 
   return (
     <main className="min-h-screen bg-gray-100 p-6 flex flex-col items-center pb-20">

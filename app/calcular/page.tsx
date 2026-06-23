@@ -100,7 +100,7 @@ export default function Calculadora() {
       case "telhado":
       case "impermeabilizacao":
         qtdComQuebra = areaTotal * 1.10;
-        unid = "m² (já c/ 10% de quebra/sobreposição)";
+        unid = "m² (já c/ 10% de quebra)";
         
         // LÓGICA DE PEÇAS DE PISO
         if (superficie === "piso" && comprimentoPiso && larguraPiso) {

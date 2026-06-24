@@ -50,10 +50,7 @@ const OPCOES_MATERIAIS: Record<string, { nome: string; tipos: string[] }> = {
 export default function Calculadora() {
   const [superficie, setSuperficie] = useState("");
   const [material, setMaterial] = useState("");
-  const [altura, setAltura] = useState("");
-  const [largura, setLargura] = useState("");
-  
-  // NOVOS ESTADOS PARA DIMENSÃO DO PISO
+  const [medidas, setMedidas] = useState([{ id: 1, altura: "", largura: "" }]);  
   const [comprimentoPiso, setComprimentoPiso] = useState("");
   const [larguraPiso, setLarguraPiso] = useState("");
   
@@ -62,7 +59,7 @@ export default function Calculadora() {
     unidade: string; 
     area: string; 
     materialNome: string;
-    totalPecas?: number; // Nova propriedade opcional
+    totalPecas?: number; 
   } | null>(null);
 
   const [projetos, setProjetos] = useState<{ id: number; titulo: string }[]>([]);
@@ -77,18 +74,34 @@ export default function Calculadora() {
     buscarProjetos();
   }, []);
 
+  const adicionarMedida = () => {
+    setMedidas([...medidas, { id: Date.now(), altura: "", largura: "" }]);
+  };
+
+  const atualizarMedida = (id: number, campo: "altura" | "largura", valor: string) => {
+    setMedidas(medidas.map(m => m.id === id ? { ...m, [campo]: valor } : m));
+  };
+
+  const removerMedida = (id: number) => {
+    setMedidas(medidas.filter(m => m.id !== id));
+  };
+
   const realizarCalculo = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const alt = parseFloat(altura.replace(",", "."));
-    const larg = parseFloat(largura.replace(",", "."));
+    let areaTotal = 0;
 
-    if (isNaN(alt) || isNaN(larg)) {
-      alert("Por favor, digite valores válidos para altura e largura.");
-      return;
+    for (const med of medidas) {
+      const alt = parseFloat(med.altura.replace(",", "."));
+      const larg = parseFloat(med.largura.replace(",", "."));
+
+      if (isNaN(alt) || isNaN(larg)) {
+        alert("Por favor, preencha corretamente todas as medidas (Altura e Largura).");
+        return;
+      }
+      areaTotal += (alt * larg);
     }
 
-    const areaTotal = alt * larg;
     let qtdComQuebra = areaTotal;
     let unid = "m²";
     let pecasEstimadas = 0;
@@ -102,7 +115,6 @@ export default function Calculadora() {
         qtdComQuebra = areaTotal * 1.10;
         unid = "m² (já c/ 10% de quebra)";
         
-        // LÓGICA DE PEÇAS DE PISO
         if (superficie === "piso" && comprimentoPiso && larguraPiso) {
             const compM = parseFloat(comprimentoPiso) / 100;
             const largM = parseFloat(larguraPiso) / 100;
@@ -143,7 +155,6 @@ export default function Calculadora() {
     if (!projetoSelecionado || !resultado) return;
     setSalvando(true);
 
-    // Se houver cálculo de peças, salvamos essa info extra no nome ou quantidade
     const infoPecas = resultado.totalPecas ? ` (~${resultado.totalPecas} peças)` : "";
     const quantidadeSalva = `${resultado.quantidade} ${resultado.unidade}${infoPecas}`;
 
@@ -212,7 +223,6 @@ export default function Calculadora() {
             </select>
           </div>
 
-          {/* CAMPOS CONDICIONAIS PARA TAMANHO DO PISO */}
           {superficie === "piso" && (
             <div className="bg-orange-50 p-4 rounded-lg border border-orange-200 animate-fade-in">
               <p className="text-orange-800 font-bold text-sm mb-3 underline">Dimensões da Peça de Piso (Opcional):</p>
@@ -241,30 +251,57 @@ export default function Calculadora() {
             </div>
           )}
 
-          <div className="flex gap-4">
-            <div className="w-1/2">
-              <label className="block text-gray-800 text-xl font-bold mb-2">Altura (m)</label>
-              <input
-                type="text"
-                inputMode="decimal"
-                className="w-full p-4 border border-gray-300 rounded-lg text-lg text-black outline-none focus:ring-2 focus:ring-orange-600"
-                value={altura}
-                onChange={(e) => setAltura(e.target.value)}
-                placeholder="Ex: 5"
-                required
-              />
+          {/* BLOCO DINÂMICO DE MEDIÇÕES (CADERNINHO DIGITAL) */}
+          <div className="border-t border-gray-200 pt-4">
+            <div className="flex justify-between items-center mb-4">
+              <label className="block text-gray-800 text-xl font-bold">Medições</label>
+              <button 
+                type="button" 
+                onClick={adicionarMedida}
+                className="text-sm bg-orange-100 text-orange-700 px-3 py-1 rounded-full font-bold hover:bg-orange-200 transition"
+              >
+                + Adicionar Área
+              </button>
             </div>
-            <div className="w-1/2">
-              <label className="block text-gray-800 text-xl font-bold mb-2">Largura (m)</label>
-              <input
-                type="text"
-                inputMode="decimal"
-                className="w-full p-4 border border-gray-300 rounded-lg text-lg text-black outline-none focus:ring-2 focus:ring-orange-600"
-                value={largura}
-                onChange={(e) => setLargura(e.target.value)}
-                placeholder="Ex: 7.5"
-                required
-              />
+
+            <div className="flex flex-col gap-3">
+              {medidas.map((medida, index) => (
+                <div key={medida.id} className="flex gap-3 items-end bg-gray-50 p-3 rounded-lg border border-gray-200 animate-fade-in">
+                  <div className="w-full">
+                    <label className="block text-gray-600 text-xs font-bold mb-1">Altura {index + 1} (m)</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      className="w-full p-3 border border-gray-300 rounded-lg text-base text-black outline-none focus:ring-2 focus:ring-orange-600"
+                      value={medida.altura}
+                      onChange={(e) => atualizarMedida(medida.id, "altura", e.target.value)}
+                      placeholder="Ex: 3"
+                      required
+                    />
+                  </div>
+                  <div className="w-full">
+                    <label className="block text-gray-600 text-xs font-bold mb-1">Largura {index + 1} (m)</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      className="w-full p-3 border border-gray-300 rounded-lg text-base text-black outline-none focus:ring-2 focus:ring-orange-600"
+                      value={medida.largura}
+                      onChange={(e) => atualizarMedida(medida.id, "largura", e.target.value)}
+                      placeholder="Ex: 4"
+                      required
+                    />
+                  </div>
+                  {medidas.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removerMedida(medida.id)}
+                      className="bg-red-100 text-red-600 h-12 w-12 rounded-lg font-bold hover:bg-red-200 transition flex items-center justify-center shrink-0"
+                    >
+                      X
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
 
@@ -272,17 +309,17 @@ export default function Calculadora() {
             type="submit"
             className="w-full bg-slate-800 text-white font-bold p-5 rounded-lg text-2xl hover:bg-slate-900 transition mt-2 shadow-sm"
           >
-            Calcular Agora
+            Calcular Total
           </button>
         </form>
 
+        {/* ... (Resultado continua igual) ... */}
         {resultado && (
           <div className="mt-6 p-6 bg-green-50 text-green-900 rounded-xl shadow-md border border-green-200 animate-fade-in">
             <h3 className="font-bold text-xl mb-3 border-b border-green-300 pb-2 text-green-900">Resultado do Cálculo:</h3>
             <p className="text-gray-800 font-semibold mb-1">Material: <span className="font-black text-gray-900">{resultado.materialNome}</span></p>
             <p className="text-3xl font-black text-green-900 mb-1">{resultado.quantidade} <span className="text-lg font-bold">{resultado.unidade}</span></p>
             
-            {/* EXIBIÇÃO ESTIMADA DE PEÇAS */}
             {resultado.totalPecas && (
                 <div className="bg-green-200 p-3 rounded-lg mt-2 border border-green-300">
                     <p className="text-green-900 font-bold">Estimativa de Peças:</p>

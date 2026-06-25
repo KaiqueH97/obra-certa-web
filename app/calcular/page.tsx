@@ -266,7 +266,8 @@ export default function Calculadora() {
 
             <div className="flex flex-col gap-3">
               {medidas.map((medida, index) => (
-                <div key={medida.id} className="flex gap-3 items-end bg-gray-50 p-3 rounded-lg border border-gray-200 animate-fade-in">
+                <div key={medida.id} className="flex gap-2 items-end bg-gray-50 p-3 rounded-lg border border-gray-200 animate-fade-in">
+                  
                   <div className="w-full">
                     <label className="block text-gray-600 text-xs font-bold mb-1">Altura {index + 1} (m)</label>
                     <input
@@ -279,6 +280,7 @@ export default function Calculadora() {
                       required
                     />
                   </div>
+                  
                   <div className="w-full">
                     <label className="block text-gray-600 text-xs font-bold mb-1">Largura {index + 1} (m)</label>
                     <input
@@ -291,15 +293,29 @@ export default function Calculadora() {
                       required
                     />
                   </div>
-                  {medidas.length > 1 && (
+                  
+                  {/* BOTÕES LADO A LADO: [+] E [X] */}
+                  <div className="flex gap-1 shrink-0">
                     <button
                       type="button"
-                      onClick={() => removerMedida(medida.id)}
-                      className="bg-red-100 text-red-600 h-12 w-12 rounded-lg font-bold hover:bg-red-200 transition flex items-center justify-center shrink-0"
+                      onClick={adicionarMedida}
+                      className="bg-green-100 text-green-700 h-12 w-12 rounded-lg font-black text-2xl hover:bg-green-200 transition flex items-center justify-center"
+                      title="Adicionar nova medida"
                     >
-                      X
+                      +
                     </button>
-                  )}
+                    
+                    {medidas.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removerMedida(medida.id)}
+                        className="bg-red-100 text-red-600 h-12 w-12 rounded-lg font-bold text-xl hover:bg-red-200 transition flex items-center justify-center"
+                        title="Remover medida"
+                      >
+                        X
+                      </button>
+                    )}
+                  </div>                  
                 </div>
               ))}
             </div>

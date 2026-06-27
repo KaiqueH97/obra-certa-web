@@ -4,6 +4,7 @@ import { useState } from "react";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function Cadastro() {
   const [nome, setNome] = useState("");
@@ -15,6 +16,7 @@ export default function Cadastro() {
   const handleCadastro = async (e: React.FormEvent) => {
     e.preventDefault();
     setCarregando(true);
+    const toastId = toast.loading("Criando sua conta...");
 
     const { error } = await supabase.auth.signUp({
       email,
@@ -27,9 +29,9 @@ export default function Cadastro() {
     });
 
     if (error) {
-      alert("Erro ao cadastrar: " + error.message);
+      toast.error("Erro ao cadastrar: " + error.message, { id: toastId });
     } else {
-      alert("Cadastro realizado! Verifique seu e-mail para confirmar.");
+      toast.success("Cadastro realizado! Verifique seu e-mail.", { id: toastId });
       router.push("/");
     }
     setCarregando(false);
@@ -37,7 +39,10 @@ export default function Cadastro() {
 
   return (
     <main className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
-      <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-lg">
+      {/* Componente necessário para renderizar os Toasts nesta tela */}
+      <Toaster position="top-center" reverseOrder={false} />
+      
+      <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-lg animate-fade-in">
         <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">Criar Conta</h1>
         <form onSubmit={handleCadastro} className="flex flex-col gap-4">
           {/* Nome */}
@@ -68,7 +73,7 @@ export default function Cadastro() {
           <button
             type="submit"
             disabled={carregando}
-            className="bg-orange-600 text-white font-bold p-4 rounded-lg hover:bg-orange-700 transition"
+            className="bg-orange-600 text-white font-bold p-4 rounded-lg hover:bg-orange-700 transition disabled:opacity-50"
           >
             {carregando ? "Cadastrando..." : "Cadastrar"}
           </button>

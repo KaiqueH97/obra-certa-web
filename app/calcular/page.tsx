@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase";
+import toast, { Toaster } from "react-hot-toast";
 
 const OPCOES_MATERIAIS: Record<string, { nome: string; tipos: string[] }> = {
   piso: {
@@ -155,6 +156,8 @@ export default function Calculadora() {
     if (!projetoSelecionado || !resultado) return;
     setSalvando(true);
 
+    const toastId = toast.loading("Salvando material na obra...");
+
     const infoPecas = resultado.totalPecas ? ` (~${resultado.totalPecas} peças)` : "";
     const quantidadeSalva = `${resultado.quantidade} ${resultado.unidade}${infoPecas}`;
 
@@ -167,15 +170,18 @@ export default function Calculadora() {
     ]);
 
     if (!error) {
-      alert("Material salvo no projeto com sucesso!");
+      // Atualiza o toast de loading para SUCESSO
+      toast.success("Material salvo no projeto com sucesso!", { id: toastId });
     } else {
-      alert("Erro ao salvar: " + error.message);
+      // Atualiza o toast de loading para ERRO
+      toast.error("Erro ao salvar: " + error.message, { id: toastId });
     }
     setSalvando(false);
   };
-
+  
   return (
     <main className="min-h-screen bg-gray-100 p-6 flex flex-col items-center pb-20">
+      <Toaster position="top-center" reverseOrder={false} />
       <div className="w-full max-w-md mt-4 animate-fade-in">
         
         <div className="flex justify-between items-center mb-8">

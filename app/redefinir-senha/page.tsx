@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function RedefinirSenha() {
   const [novaSenha, setNovaSenha] = useState("");
@@ -14,33 +15,40 @@ export default function RedefinirSenha() {
     e.preventDefault();
 
     if (novaSenha !== confirmarSenha) {
-      alert("As senhas não coincidem!");
+      toast.error("As senhas não coincidem!");
       return;
     }
 
     if (novaSenha.length < 6) {
-      alert("A senha deve ter pelo menos 6 caracteres.");
+      toast.error("A senha deve ter pelo menos 6 caracteres.");
       return;
     }
 
     setCarregando(true);
+    const toastId = toast.loading("Salvando nova senha...");
 
     const { error } = await supabase.auth.updateUser({
       password: novaSenha,
     });
 
     if (error) {
-      alert("Erro ao redefinir: " + error.message);
+      toast.error("Erro ao redefinir: " + error.message, { id: toastId });
+      setCarregando(false);
     } else {
-      alert("Senha alterada com sucesso! Agora você pode fazer login.");
-      router.push("/");
+      toast.success("Senha alterada com sucesso!", { id: toastId });
+      
+      setTimeout(() => {
+        router.push("/");
+      }, 2000);
     }
-    setCarregando(false);
   };
 
   return (
     <main className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
-      <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-lg border border-gray-200">
+      {/* Componente para renderizar os Toasts */}
+      <Toaster position="top-center" reverseOrder={false} />
+
+      <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-lg border border-gray-200 animate-fade-in">
         <h1 className="text-3xl font-bold text-gray-900 mb-2 text-center">Nova Senha</h1>
         <p className="text-gray-600 mb-8 text-center text-sm">
           Digite e confirme sua nova senha de acesso.
@@ -52,10 +60,11 @@ export default function RedefinirSenha() {
             <input
               type="password"
               placeholder="Mínimo 6 caracteres"
-              className="w-full p-4 border rounded-lg text-black focus:ring-2 focus:ring-orange-600 outline-none"
+              className="w-full p-4 border rounded-lg text-black focus:ring-2 focus:ring-orange-600 outline-none disabled:bg-gray-100 disabled:text-gray-400 transition"
               value={novaSenha}
               onChange={(e) => setNovaSenha(e.target.value)}
               required
+              disabled={carregando}
             />
           </div>
 
@@ -64,10 +73,11 @@ export default function RedefinirSenha() {
             <input
               type="password"
               placeholder="Repita a nova senha"
-              className="w-full p-4 border rounded-lg text-black focus:ring-2 focus:ring-orange-600 outline-none"
+              className="w-full p-4 border rounded-lg text-black focus:ring-2 focus:ring-orange-600 outline-none disabled:bg-gray-100 disabled:text-gray-400 transition"
               value={confirmarSenha}
               onChange={(e) => setConfirmarSenha(e.target.value)}
               required
+              disabled={carregando}
             />
           </div>
 

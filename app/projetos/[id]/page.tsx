@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "../../../lib/supabase"; 
 import Link from "next/link";
+import toast, { Toaster } from "react-hot-toast";
 
 interface Tarefa {
   id: number;
@@ -69,7 +70,6 @@ export default function DetalhesDoProjeto() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projetoId]);
 
-  // Função intacta com o tratamento de erros que fizemos
   const atualizarPreco = async (id: number, valorDigitado: string) => {
     const valorLimpo = valorDigitado.replace(/\./g, "").replace(",", ".");
     const precoNumerico = parseFloat(valorLimpo);
@@ -86,10 +86,12 @@ export default function DetalhesDoProjeto() {
       .select();
 
     if (error) {
-      alert("Erro do banco de dados: " + error.message);
+      toast.error("Erro do banco de dados: " + error.message);
       console.error("Detalhe do erro:", error);
     } else if (data && data.length === 0) {
-      alert("Aviso: O preço não foi salvo! O Supabase bloqueou a edição (Provavelmente falta configurar o RLS de UPDATE na tabela materiais_projeto).");
+      toast.error("O preço não foi salvo! O Supabase bloqueou a edição (RLS).");
+    } else {
+      toast.success("Preço salvo com sucesso!", { duration: 1500 });
     }
   };
 
@@ -100,6 +102,8 @@ export default function DetalhesDoProjeto() {
   };
 
   const salvarEdicaoMaterial = async (id: number) => {
+    const toastId = toast.loading("Salvando alterações...");
+    
     setMateriais(prev => prev.map(item => 
       item.id === id ? { ...item, nome: nomeEditado, quantidade: qtdEditada } : item
     ));
@@ -110,33 +114,73 @@ export default function DetalhesDoProjeto() {
       .eq("id", id);
 
     if (error) {
-      alert("Erro ao atualizar material: " + error.message);
+      toast.error("Erro ao atualizar material: " + error.message, { id: toastId });
       carregarDadosDaObra();
+    } else {
+      toast.success("Material atualizado!", { id: toastId });
     }
     setMaterialEditando(null);
   };
 
-  const excluirMaterial = async (id: number) => {
-    if (!window.confirm("Deseja excluir este material do orçamento?")) return;
+  // Lógica do Modal de Confirmação para Exclusão
+  const confirmarExclusaoMaterial = (id: number) => {
+    toast(
+      (t) => (
+        <div className="flex flex-col gap-2">
+          <p className="font-bold text-gray-900 text-lg">Excluir material?</p>
+          <p className="text-sm text-gray-600 mb-2">
+            Ele será removido permanentemente deste orçamento.
+          </p>
+          <div className="flex justify-end gap-2">
+            <button 
+              onClick={() => toast.dismiss(t.id)} 
+              className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-bold hover:bg-gray-300 transition"
+            >
+              Cancelar
+            </button>
+            <button 
+              onClick={() => {
+                toast.dismiss(t.id);
+                executarExclusaoMaterial(id);
+              }} 
+              className="px-4 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition"
+            >
+              Sim, Excluir
+            </button>
+          </div>
+        </div>
+      ),
+      { duration: Infinity }
+    );
+  };
 
+  const executarExclusaoMaterial = async (id: number) => {
+    const toastId = toast.loading("Removendo material...");
     setMateriais(prev => prev.filter(item => item.id !== id));
     
     const { error } = await supabase.from("materiais_projeto").delete().eq("id", id);
 
     if (error) {
-      alert("Erro ao excluir: " + error.message);
+      toast.error("Erro ao excluir: " + error.message, { id: toastId });
       carregarDadosDaObra();
+    } else {
+      toast.success("Material excluído!", { id: toastId });
     }
   };
 
   const criarTarefa = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!novaTarefa) return;
+    
     const { error } = await supabase.from("tarefas").insert([{ nome: novaTarefa, projeto_id: projetoId }]);
+    
     if (!error) {
       setNovaTarefa("");
+      toast.success("Tarefa adicionada!", { duration: 1500 });
       const { data } = await supabase.from("tarefas").select("*").eq("projeto_id", projetoId).order("criado_em", { ascending: true });
       if (data) setTarefas(data);
+    } else {
+      toast.error("Erro ao criar tarefa: " + error.message);
     }
   };
 
@@ -144,40 +188,43 @@ export default function DetalhesDoProjeto() {
     const { error } = await supabase.from("tarefas").update({ concluida: !statusAtual }).eq("id", id);
     if (!error) {
       setTarefas(prev => prev.map(t => t.id === id ? { ...t, concluida: !statusAtual } : t));
+    } else {
+      toast.error("Erro ao atualizar tarefa.");
     }
   };
 
-const solicitarOrcamentoWhatsApp = () => {
-  // Emojis via Unicode escape — sem risco de corrompimento por encoding do arquivo
-  const e = {
-    worker:   '\u{1F477}\u200D\u2642\uFE0F', // 👷‍♂️
-    clipboard: '\u{1F4CB}',                  // 📋
-    bullet:   '\u25AA\uFE0F',                // ▪️
-    bulb:     '\u{1F4A1}',                   // 💡
-    phone:    '\u{1F4DE}',                   // 📞
+  const solicitarOrcamentoWhatsApp = () => {
+    const e = {
+      worker:   '\u{1F477}\u200D\u2642\uFE0F',
+      clipboard: '\u{1F4CB}',
+      bullet:   '\u25AA\uFE0F',
+      bulb:     '\u{1F4A1}',
+      phone:    '\u{1F4DE}',
+    };
+
+    let textoMensagem = `Olá! Aqui é o ${nomeProfissional}. ${e.worker}\n`;
+    textoMensagem += `Segue a relação de materiais atualizada para a obra: *${tituloObra}*\n\n`;
+
+    textoMensagem += `*${e.clipboard} LISTA DE MATERIAIS:*\n`;
+    materiais.forEach(item => {
+      textoMensagem += `${e.bullet} *${item.nome}:* ${item.quantidade}\n`;
+    });
+
+    textoMensagem += `\n*${e.bulb} Obra Certa:* Planejamento inteligente, transparência e sem desperdício na sua construção.\n\n`;
+    textoMensagem += `Qualquer dúvida sobre as medidas, estou à disposição!\n`;
+
+    if (telefoneContato) {
+      textoMensagem += `${e.phone} Contato: ${telefoneContato}`;
+    }
+
+    const urlWhatsApp = `https://wa.me/?text=${encodeURIComponent(textoMensagem)}`;
+    window.open(urlWhatsApp, '_blank');
   };
-
-  let textoMensagem = `Olá! Aqui é o ${nomeProfissional}. ${e.worker}\n`;
-  textoMensagem += `Segue a relação de materiais atualizada para a obra: *${tituloObra}*\n\n`;
-
-  textoMensagem += `*${e.clipboard} LISTA DE MATERIAIS:*\n`;
-  materiais.forEach(item => {
-    textoMensagem += `${e.bullet} *${item.nome}:* ${item.quantidade}\n`;
-  });
-
-  textoMensagem += `\n*${e.bulb} Obra Certa:* Planejamento inteligente, transparência e sem desperdício na sua construção.\n\n`;
-  textoMensagem += `Qualquer dúvida sobre as medidas, estou à disposição!\n`;
-
-  if (telefoneContato) {
-    textoMensagem += `${e.phone} Contato: ${telefoneContato}`;
-  }
-
-  const urlWhatsApp = `https://wa.me/?text=${encodeURIComponent(textoMensagem)}`;
-  window.open(urlWhatsApp, '_blank');
-};
 
   return (
     <main className="min-h-screen bg-gray-100 p-6 flex flex-col items-center pb-20">
+      <Toaster position="top-center" reverseOrder={false} />
+
       <div className="w-full max-w-md mt-4 animate-fade-in">
         
         {/* Cabeçalho Fixo */}
@@ -209,7 +256,9 @@ const solicitarOrcamentoWhatsApp = () => {
         </div>
 
         {carregando ? (
-          <p className="text-center text-gray-600 mt-10">Carregando dados...</p>
+          <div className="flex justify-center p-6">
+            <p className="text-gray-600 font-bold animate-pulse mt-10">Carregando dados...</p>
+          </div>
         ) : (
           <div className="animate-fade-in">
             
@@ -266,7 +315,7 @@ const solicitarOrcamentoWhatsApp = () => {
                                 {/* Botões Editar/Excluir */}
                                 <div className="flex flex-col gap-2">
                                   <button onClick={() => iniciarEdicaoMaterial(item)} className="text-blue-600 font-bold text-xs hover:underline flex items-center justify-end gap-1">✏️ Editar</button>
-                                  <button onClick={() => excluirMaterial(item.id)} className="text-red-600 font-bold text-xs hover:underline flex items-center justify-end gap-1">🗑️ Excluir</button>
+                                  <button onClick={() => confirmarExclusaoMaterial(item.id)} className="text-red-600 font-bold text-xs hover:underline flex items-center justify-end gap-1">🗑️ Excluir</button>
                                 </div>
                               </div>
                               
@@ -278,7 +327,7 @@ const solicitarOrcamentoWhatsApp = () => {
                                   defaultValue={item.preco_total ? item.preco_total.toString().replace(".", ",") : ""}
                                   placeholder="0,00"
                                   onBlur={(e) => atualizarPreco(item.id, e.target.value)}
-                                  className="w-24 p-1 text-right border-b-2 border-gray-200 font-bold text-green-700 outline-none focus:border-green-500 bg-transparent"
+                                  className="w-24 p-1 text-right border-b-2 border-gray-200 font-bold text-green-700 outline-none focus:border-green-500 bg-transparent transition-colors"
                                 />
                               </div>
                             </>
@@ -290,7 +339,7 @@ const solicitarOrcamentoWhatsApp = () => {
                   
                   <Link 
                     href="/calcular"
-                    className="block w-full text-center bg-yellow-600 text-white font-bold p-4 rounded-xl hover:bg-yellow-700 transition"
+                    className="block w-full text-center bg-yellow-600 text-white font-bold p-4 rounded-xl hover:bg-yellow-700 transition shadow-sm"
                   >
                     + Novo Cálculo de Material
                   </Link>
@@ -298,7 +347,7 @@ const solicitarOrcamentoWhatsApp = () => {
                   {materiais.length > 0 && (
                     <button 
                       onClick={solicitarOrcamentoWhatsApp}
-                      className="w-full flex items-center justify-center gap-2 bg-[#25D366] text-white font-bold p-4 rounded-xl hover:bg-[#128C7E] transition"
+                      className="w-full flex items-center justify-center gap-2 bg-[#25D366] text-white font-bold p-4 rounded-xl hover:bg-[#128C7E] transition shadow-sm"
                     >
                       Pedir Cotação no WhatsApp
                     </button>
@@ -318,13 +367,15 @@ const solicitarOrcamentoWhatsApp = () => {
                     value={novaTarefa}
                     onChange={(e) => setNovaTarefa(e.target.value)}
                   />
-                  <button type="submit" className="bg-slate-800 text-white font-bold px-6 rounded-xl hover:bg-slate-900 transition">
+                  <button type="submit" className="bg-slate-800 text-white font-bold px-6 rounded-xl hover:bg-slate-900 transition shadow-sm">
                     Criar
                   </button>
                 </form>
 
                 {tarefas.length === 0 ? (
-                  <p className="text-center text-gray-500 py-10">Sua lista de tarefas está vazia.</p>
+                  <p className="text-center text-gray-500 py-10 bg-white rounded-xl border border-gray-200">
+                    Sua lista de tarefas está vazia.
+                  </p>
                 ) : (
                   <div className="grid gap-3">
                     {tarefas.map((tarefa) => (
@@ -332,15 +383,15 @@ const solicitarOrcamentoWhatsApp = () => {
                         key={tarefa.id} 
                         onClick={() => alternarConclusao(tarefa.id, tarefa.concluida)}
                         className={`p-5 rounded-xl border cursor-pointer flex items-center gap-4 transition-all ${
-                          tarefa.concluida ? "bg-green-50 border-green-200 opacity-60" : "bg-white border-gray-200 shadow-sm"
+                          tarefa.concluida ? "bg-green-50 border-green-200 opacity-60" : "bg-white border-gray-200 shadow-sm hover:shadow-md"
                         }`}
                       >
-                        <div className={`w-6 h-6 rounded flex items-center justify-center border-2 ${
+                        <div className={`w-6 h-6 rounded flex items-center justify-center border-2 transition-colors ${
                           tarefa.concluida ? "bg-green-500 border-green-500 text-white" : "border-gray-300"
                         }`}>
                           {tarefa.concluida && "✓"}
                         </div>
-                        <span className={`text-lg font-bold ${tarefa.concluida ? "line-through text-green-900" : "text-gray-800"}`}>
+                        <span className={`text-lg font-bold transition-all ${tarefa.concluida ? "line-through text-green-900" : "text-gray-800"}`}>
                           {tarefa.nome}
                         </span>
                       </div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 import Link from "next/link";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function Perfil() {
   const router = useRouter();
@@ -22,7 +23,7 @@ export default function Perfil() {
         setEmail(user.email ?? "E-mail não encontrado");
         
         const nomeAtual = user.user_metadata?.nome || "Usuário";
-        const telefoneAtual = user.user_metadata?.telefone || ""; // Puxa do banco
+        const telefoneAtual = user.user_metadata?.telefone || ""; 
         
         setNome(nomeAtual);
         setNovoNome(nomeAtual);
@@ -36,12 +37,12 @@ export default function Perfil() {
 
   const handleSalvarDados = async () => {
     if (!novoNome.trim()) {
-      alert("O nome não pode ficar vazio.");
+      toast.error("O nome não pode ficar vazio.");
       return;
     }
 
     setSalvando(true);
-
+    const toastId = toast.loading("Salvando seus dados...");
     const { error } = await supabase.auth.updateUser({
       data: { 
         nome: novoNome,
@@ -50,11 +51,12 @@ export default function Perfil() {
     });
 
     if (error) {
-      alert("Erro ao atualizar os dados: " + error.message);
+      toast.error("Erro ao atualizar os dados: " + error.message, { id: toastId });
     } else {
       setNome(novoNome);
       setTelefone(novoTelefone);
       setEditando(false);
+      toast.success("Dados atualizados com sucesso!", { id: toastId });
     }
     
     setSalvando(false);
@@ -67,6 +69,8 @@ export default function Perfil() {
 
   return (
     <main className="min-h-screen bg-gray-100 p-6 flex flex-col items-center">
+      <Toaster position="top-center" reverseOrder={false} />
+      
       <div className="w-full max-w-md mt-4 animate-fade-in">
         
         <div className="flex justify-between items-center mb-8">
@@ -90,7 +94,6 @@ export default function Perfil() {
                   {nome}
                 </h2>
                 
-                {/* NOVO: Exibe o telefone se ele existir */}
                 {telefone && (
                   <p className="text-gray-700 font-bold text-lg mb-2 flex items-center gap-2">
                     📞 {telefone}
@@ -108,19 +111,20 @@ export default function Perfil() {
               <div className="flex flex-col items-center gap-3 w-full mb-2">
                 <input
                   type="text"
-                  className="w-full p-3 border border-gray-300 rounded-lg text-center text-lg font-bold text-gray-900 focus:ring-2 focus:ring-orange-600 outline-none"
+                  className="w-full p-3 border border-gray-300 rounded-lg text-center text-lg font-bold text-gray-900 focus:ring-2 focus:ring-orange-600 outline-none disabled:bg-gray-100"
                   value={novoNome}
                   onChange={(e) => setNovoNome(e.target.value)}
                   placeholder="Digite seu nome"
+                  disabled={salvando} // Bloqueia digitação ao salvar
                 />
                 
-                {/* NOVO: Input para o Telefone */}
                 <input
                   type="tel"
-                  className="w-full p-3 border border-gray-300 rounded-lg text-center text-lg font-bold text-gray-900 focus:ring-2 focus:ring-orange-600 outline-none"
+                  className="w-full p-3 border border-gray-300 rounded-lg text-center text-lg font-bold text-gray-900 focus:ring-2 focus:ring-orange-600 outline-none disabled:bg-gray-100"
                   value={novoTelefone}
                   onChange={(e) => setNovoTelefone(e.target.value)}
                   placeholder="WhatsApp: (11) 90000-0000"
+                  disabled={salvando} // Bloqueia digitação ao salvar
                 />
 
                 <div className="flex gap-2 w-full mt-2">
@@ -130,7 +134,8 @@ export default function Perfil() {
                       setNovoNome(nome || "");
                       setNovoTelefone(telefone || "");
                     }}
-                    className="flex-1 bg-gray-200 text-gray-800 font-bold py-2 rounded-lg hover:bg-gray-300 transition"
+                    disabled={salvando}
+                    className="flex-1 bg-gray-200 text-gray-800 font-bold py-2 rounded-lg hover:bg-gray-300 transition disabled:opacity-50"
                   >
                     Cancelar
                   </button>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { supabase } from "../../lib/supabase";
+import { supabase } from "../../../lib/supabase";
 import toast, { Toaster } from "react-hot-toast";
 
 const OPCOES_MATERIAIS: Record<string, { nome: string; tipos: string[] }> = {

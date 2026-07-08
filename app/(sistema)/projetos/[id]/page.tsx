@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { supabase } from "../../../lib/supabase"; 
+import { supabase } from "../../../../lib/supabase"; 
 import Link from "next/link";
 import toast, { Toaster } from "react-hot-toast";
 

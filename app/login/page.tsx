@@ -86,7 +86,7 @@ export default function Home() {
 
           {/* Links para recuperação de senha e cadastro */}
           <div className="mt-6 flex flex-col gap-3 text-center border-t border-gray-100 pt-6">
-            <Link href="/recuperar-senha" className="text-gray-500 font-medium hover:text-orange-600 transition">
+            <Link href="/recuperar" className="text-gray-500 font-medium hover:text-orange-600 transition">
               Esqueceu sua senha?
             </Link>
             <p className="text-gray-600">

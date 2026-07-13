@@ -30,17 +30,23 @@ export default function LandingPage() {
   return (
     <main className="flex min-h-screen flex-col bg-zinc-50 font-sans">
       {/* Header */}
-      <header className="flex w-full items-center justify-between p-6 bg-white shadow-sm border-b border-zinc-100">
+      <header className="flex w-full items-center justify-between p-4 sm:p-6 bg-white shadow-sm border-b border-zinc-100">
         <div className="flex items-center gap-2 text-orange-600">
-          <HardHat size={28} />
-          <span className="text-xl font-bold text-zinc-900 tracking-tight">Obra Certa</span>
+          <HardHat size={24} className="sm:w-7 sm:h-7" />
+          <span className="text-lg sm:text-xl font-bold text-zinc-900 tracking-tight">Obra Certa</span>
         </div>
-        <div className="flex items-center gap-4">
-          <Link href="/login" className="text-sm font-medium text-zinc-600 hover:text-orange-600 transition-colors hidden sm:block">
-            Já tenho conta
+        <div className="flex items-center gap-3 sm:gap-4">
+          <Link 
+            href="/login" 
+            className="text-sm font-medium text-zinc-600 hover:text-orange-600 transition-colors"
+          >
+            Entrar
           </Link>
-          <Link href="/cadastro" className="bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold py-2 px-4 rounded-lg transition-colors">
-            Cadastre-se
+          <Link 
+            href="/cadastro" 
+            className="bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold py-2 px-3 sm:px-4 rounded-lg transition-colors"
+          >
+            Criar Conta
           </Link>
         </div>
       </header>

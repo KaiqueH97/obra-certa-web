@@ -2,18 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "../../../lib/supabase";
-import Link from "next/link";
-import toast, { Toaster } from "react-hot-toast";
+import { supabase } from "@/lib/supabase";
+import toast from "react-hot-toast";
+import { User, Phone, Mail, LogOut, Shield, Save, X, HardHat, Key } from "lucide-react";
 
 export default function Perfil() {
   const router = useRouter();
-  const [nome, setNome] = useState<string | null>("Carregando...");
-  const [email, setEmail] = useState<string | null>("...");  
-  const [telefone, setTelefone] = useState<string | null>(""); 
-  const [novoTelefone, setNovoTelefone] = useState("");
+  const [nome, setNome] = useState<string>("Carregando...");
+  const [email, setEmail] = useState<string>("...");  
+  const [telefone, setTelefone] = useState<string>(""); 
+  
   const [editando, setEditando] = useState(false);
   const [novoNome, setNovoNome] = useState("");
+  const [novoTelefone, setNovoTelefone] = useState("");
   const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
@@ -63,107 +64,189 @@ export default function Perfil() {
   };
 
   const handleSair = async () => {
+    const toastId = toast.loading("Saindo do sistema...");
     await supabase.auth.signOut();
-    router.push("/");
+    toast.success("Sessão encerrada.", { id: toastId });
+    router.push("/login");
+  };
+
+  // Função auxiliar para pegar as iniciais do nome para o Avatar
+  const getIniciais = (nomeCompleto: string) => {
+    if (nomeCompleto === "Carregando..." || nomeCompleto === "Usuário") return "OC";
+    const partes = nomeCompleto.trim().split(" ");
+    if (partes.length === 1) return partes[0].substring(0, 2).toUpperCase();
+    return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
   };
 
   return (
-    <main className="min-h-screen bg-gray-100 p-6 flex flex-col items-center">
-      <Toaster position="top-center" reverseOrder={false} />
+    <div className="space-y-6 animate-in fade-in duration-500">
       
-      <div className="w-full max-w-md mt-4 animate-fade-in">
-        
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Meu Perfil</h1>
-          <Link href="/home" className="text-orange-600 font-bold text-lg hover:underline">
-            Voltar
-          </Link>
-        </div>
-
-        <div className="bg-white p-8 rounded-xl shadow-md border border-gray-200 flex flex-col gap-6 items-center">
-          
-          <div className="w-24 h-24 bg-slate-200 rounded-full flex items-center justify-center border-4 border-slate-300">
-            <span className="text-5xl">👷</span>
-          </div>
-
-          <div className="text-center w-full flex flex-col items-center">
-            
-            {!editando ? (
-              <div className="flex flex-col items-center gap-2 mb-2">
-                <h2 className="text-3xl font-black text-gray-900 truncate max-w-xs">
-                  {nome}
-                </h2>
-                
-                {telefone && (
-                  <p className="text-gray-700 font-bold text-lg mb-2 flex items-center gap-2">
-                    📞 {telefone}
-                  </p>
-                )}
-
-                <button 
-                  onClick={() => setEditando(true)}
-                  className="text-sm font-bold text-orange-600 bg-orange-50 px-4 py-1 rounded-full hover:bg-orange-100 transition mt-1"
-                >
-                  Editar Dados
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-3 w-full mb-2">
-                <input
-                  type="text"
-                  className="w-full p-3 border border-gray-300 rounded-lg text-center text-lg font-bold text-gray-900 focus:ring-2 focus:ring-orange-600 outline-none disabled:bg-gray-100"
-                  value={novoNome}
-                  onChange={(e) => setNovoNome(e.target.value)}
-                  placeholder="Digite seu nome"
-                  disabled={salvando} // Bloqueia digitação ao salvar
-                />
-                
-                <input
-                  type="tel"
-                  className="w-full p-3 border border-gray-300 rounded-lg text-center text-lg font-bold text-gray-900 focus:ring-2 focus:ring-orange-600 outline-none disabled:bg-gray-100"
-                  value={novoTelefone}
-                  onChange={(e) => setNovoTelefone(e.target.value)}
-                  placeholder="WhatsApp: (11) 90000-0000"
-                  disabled={salvando} // Bloqueia digitação ao salvar
-                />
-
-                <div className="flex gap-2 w-full mt-2">
-                  <button 
-                    onClick={() => {
-                      setEditando(false);
-                      setNovoNome(nome || "");
-                      setNovoTelefone(telefone || "");
-                    }}
-                    disabled={salvando}
-                    className="flex-1 bg-gray-200 text-gray-800 font-bold py-2 rounded-lg hover:bg-gray-300 transition disabled:opacity-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button 
-                    onClick={handleSalvarDados}
-                    disabled={salvando}
-                    className="flex-1 bg-green-600 text-white font-bold py-2 rounded-lg hover:bg-green-700 transition disabled:opacity-50"
-                  >
-                    {salvando ? "Salvando..." : "Salvar"}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <p className="text-gray-500 font-bold text-sm bg-gray-50 px-4 py-2 rounded-lg border border-gray-100 w-full mt-4">
-              {email}
-            </p>
-          </div>
-
-          <button
-            onClick={handleSair}
-            className="w-full bg-red-600 text-white font-bold p-4 rounded-lg text-xl hover:bg-red-700 transition mt-2 shadow-sm"
-          >
-            Sair do Sistema
-          </button>
-          
+      {/* HEADER PRINCIPAL */}
+      <div className="bg-white p-6 rounded-2xl border border-zinc-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-extrabold text-zinc-900 tracking-tight">Meu Perfil</h1>
+          <p className="text-sm md:text-base text-zinc-500 mt-1">Gerencie suas informações e preferências do sistema.</p>
         </div>
       </div>
-    </main>
+
+      {/* GRID DE MÓDULOS (1 coluna no mobile, 3 no desktop) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        {/* COLUNA ESQUERDA: CRACHÁ E AÇÕES RÁPIDAS */}
+        <div className="md:col-span-1 space-y-6">
+          <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 flex flex-col items-center text-center">
+            
+            {/* Avatar Dinâmico */}
+            <div className="w-24 h-24 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-3xl font-black mb-4 ring-4 ring-white shadow-md">
+              {getIniciais(nome)}
+            </div>
+            
+            <h2 className="text-xl font-bold text-zinc-900 mb-1">{nome}</h2>
+            <p className="text-sm font-medium text-zinc-500 flex items-center gap-1">
+              <HardHat size={16} /> Profissional da Obra
+            </p>
+
+            <div className="w-full h-px bg-zinc-100 my-6"></div>
+
+            <button
+              onClick={handleSair}
+              className="w-full flex items-center justify-center gap-2 bg-red-50 text-red-600 hover:bg-red-100 font-bold p-3 rounded-xl transition-colors"
+            >
+              <LogOut size={20} /> Sair do Sistema
+            </button>
+          </div>
+        </div>
+
+        {/* COLUNA DIREITA: FORMULÁRIOS E CONFIGURAÇÕES */}
+        <div className="md:col-span-2 space-y-6">
+          
+          {/* MÓDULO 1: DADOS PESSOAIS */}
+          <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+            <div className="p-4 md:p-6 border-b border-zinc-100 bg-zinc-50 flex items-center gap-2">
+              <User size={20} className="text-orange-600" />
+              <h3 className="font-bold text-zinc-900 text-lg">Dados Pessoais</h3>
+            </div>
+            
+            <div className="p-4 md:p-6">
+              {!editando ? (
+                /* MODO VISUALIZAÇÃO */
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div>
+                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide">Nome Completo</label>
+                      <p className="text-zinc-900 font-medium text-lg mt-1">{nome}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide flex items-center gap-1">
+                        <Phone size={14} /> WhatsApp
+                      </label>
+                      <p className="text-zinc-900 font-medium text-lg mt-1">
+                        {telefone || <span className="text-zinc-400 italic">Não informado</span>}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="pt-4 border-t border-zinc-100 flex justify-end">
+                    <button 
+                      onClick={() => setEditando(true)}
+                      className="bg-zinc-900 text-white px-6 py-2.5 rounded-xl hover:bg-zinc-800 transition-colors shadow-sm font-medium"
+                    >
+                      Editar Dados
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* MODO EDIÇÃO */
+                <div className="space-y-4 animate-in fade-in">
+                  <div>
+                    <label className="block text-zinc-700 text-sm font-bold mb-2">Nome Completo</label>
+                    <input
+                      type="text"
+                      className="w-full p-3 border border-zinc-300 rounded-xl text-zinc-900 focus:ring-2 focus:ring-orange-600 outline-none transition-all disabled:bg-zinc-100"
+                      value={novoNome}
+                      onChange={(e) => setNovoNome(e.target.value)}
+                      placeholder="Ex: João da Silva"
+                      disabled={salvando}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-zinc-700 text-sm font-bold mb-2">WhatsApp de Contato</label>
+                    <input
+                      type="tel"
+                      className="w-full p-3 border border-zinc-300 rounded-xl text-zinc-900 focus:ring-2 focus:ring-orange-600 outline-none transition-all disabled:bg-zinc-100"
+                      value={novoTelefone}
+                      onChange={(e) => setNovoTelefone(e.target.value)}
+                      placeholder="(11) 90000-0000"
+                      disabled={salvando}
+                    />
+                    <p className="text-xs text-zinc-500 mt-2">
+                      Este número será usado para formatar suas mensagens de orçamento no WhatsApp.
+                    </p>
+                  </div>
+
+                  <div className="pt-4 flex gap-2 justify-end">
+                    <button 
+                      onClick={() => {
+                        setEditando(false);
+                        setNovoNome(nome);
+                        setNovoTelefone(telefone);
+                      }}
+                      disabled={salvando}
+                      className="px-6 py-2.5 bg-zinc-100 text-zinc-700 font-bold rounded-xl hover:bg-zinc-200 transition disabled:opacity-50 flex items-center gap-2"
+                    >
+                      <X size={18} /> Cancelar
+                    </button>
+                    <button 
+                      onClick={handleSalvarDados}
+                      disabled={salvando}
+                      className="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition disabled:opacity-50 flex items-center gap-2 shadow-sm"
+                    >
+                      <Save size={18} /> {salvando ? "Salvando..." : "Salvar"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* MÓDULO 2: SEGURANÇA */}
+          <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+            <div className="p-4 md:p-6 border-b border-zinc-100 bg-zinc-50 flex items-center gap-2">
+              <Shield size={20} className="text-orange-600" />
+              <h3 className="font-bold text-zinc-900 text-lg">Segurança de Acesso</h3>
+            </div>
+            
+            <div className="p-4 md:p-6 space-y-6">
+              <div>
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide flex items-center gap-1">
+                  <Mail size={14} /> E-mail da Conta
+                </label>
+                <div className="mt-2 p-3 bg-zinc-50 border border-zinc-200 rounded-xl">
+                  <p className="text-zinc-700 font-medium">{email}</p>
+                </div>
+                <p className="text-xs text-zinc-500 mt-2">
+                  O e-mail não pode ser alterado por aqui. Entre em contato com o suporte se precisar atualizar.
+                </p>
+              </div>
+
+              <div className="pt-4 border-t border-zinc-100 flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-zinc-900 text-sm">Senha de Acesso</h4>
+                  <p className="text-xs text-zinc-500 mt-1">Sua senha é protegida por criptografia de ponta a ponta.</p>
+                </div>
+                <button 
+                  onClick={() => router.push('/redefinir-senha')}
+                  className="flex items-center gap-2 bg-orange-50 text-orange-600 px-4 py-2 rounded-lg hover:bg-orange-100 transition-colors font-medium text-sm"
+                >
+                  <Key size={16} /> Redefinir
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
   );
 }

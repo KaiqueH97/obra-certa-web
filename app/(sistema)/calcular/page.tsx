@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
-import { supabase } from "../../../lib/supabase";
-import toast, { Toaster } from "react-hot-toast";
+import { supabase } from "@/lib/supabase";
+import toast from "react-hot-toast";
+import { Calculator, Plus, X, Building2, Save, Ruler, CheckCircle2 } from "lucide-react";
 
 const OPCOES_MATERIAIS: Record<string, { nome: string; tipos: string[] }> = {
   piso: {
@@ -89,7 +89,6 @@ export default function Calculadora() {
 
   const realizarCalculo = (e: React.FormEvent) => {
     e.preventDefault();
-
     let areaTotal = 0;
 
     for (const med of medidas) {
@@ -97,7 +96,7 @@ export default function Calculadora() {
       const larg = parseFloat(med.largura.replace(",", "."));
 
       if (isNaN(alt) || isNaN(larg)) {
-        alert("Por favor, preencha corretamente todas as medidas (Altura e Largura).");
+        toast.error("Preencha corretamente todas as medidas (Altura e Largura).");
         return;
       }
       areaTotal += (alt * larg);
@@ -113,7 +112,7 @@ export default function Calculadora() {
       case "laje":
       case "telhado":
       case "impermeabilizacao":
-        qtdComQuebra = areaTotal * 1.10;
+        qtdComQuebra = areaTotal * 1.10; // 10% de quebra
         unid = "m² (já c/ 10% de quebra)";
         
         if (superficie === "piso" && comprimentoPiso && larguraPiso) {
@@ -150,6 +149,9 @@ export default function Calculadora() {
       materialNome: material || OPCOES_MATERIAIS[superficie]?.nome || "Material",
       totalPecas: pecasEstimadas > 0 ? pecasEstimadas : undefined
     });
+    
+    // Pequeno feedback visual para o usuário
+    toast.success("Cálculo realizado com sucesso!");
   };
 
   const salvarNoProjeto = async () => {
@@ -157,7 +159,6 @@ export default function Calculadora() {
     setSalvando(true);
 
     const toastId = toast.loading("Salvando material na obra...");
-
     const infoPecas = resultado.totalPecas ? ` (~${resultado.totalPecas} peças)` : "";
     const quantidadeSalva = `${resultado.quantidade} ${resultado.unidade}${infoPecas}`;
 
@@ -170,218 +171,265 @@ export default function Calculadora() {
     ]);
 
     if (!error) {
-      // Atualiza o toast de loading para SUCESSO
       toast.success("Material salvo no projeto com sucesso!", { id: toastId });
     } else {
-      // Atualiza o toast de loading para ERRO
       toast.error("Erro ao salvar: " + error.message, { id: toastId });
     }
     setSalvando(false);
   };
   
   return (
-    <main className="min-h-screen bg-gray-100 p-6 flex flex-col items-center pb-20">
-      <Toaster position="top-center" reverseOrder={false} />
-      <div className="w-full max-w-md mt-4 animate-fade-in">
-        
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Calculadora</h1>
-          <Link href="/home" className="text-orange-600 font-bold text-lg hover:underline">
-            Voltar
-          </Link>
+    <div className="space-y-6 animate-in fade-in duration-500">
+      
+      {/* HEADER */}
+      <div className="bg-white p-6 rounded-2xl border border-zinc-100 shadow-sm flex items-center gap-4">
+        <div className="p-3 bg-orange-100 text-orange-600 rounded-xl hidden md:block">
+          <Calculator size={32} />
         </div>
+        <div>
+          <h1 className="text-2xl md:text-3xl font-extrabold text-zinc-900 tracking-tight">Calculadora Inteligente</h1>
+          <p className="text-sm md:text-base text-zinc-500 mt-1">Some áreas, adicione quebras e estime materiais em segundos.</p>
+        </div>
+      </div>
 
-        <form onSubmit={realizarCalculo} className="bg-white p-6 rounded-xl shadow-md border border-gray-200 flex flex-col gap-6">
-          
-          <div>
-            <label className="block text-gray-800 text-xl font-bold mb-2">Superfície</label>
-            <select 
-              className="w-full p-4 border border-gray-300 rounded-lg text-lg text-black bg-white focus:ring-2 focus:ring-orange-600 outline-none"
-              value={superficie}
-              onChange={(e) => {
-                setSuperficie(e.target.value);
-                setMaterial(""); 
-              }}
-              required
-            >
-              <option value="" disabled hidden>Selecione a superfície</option>
-              {Object.entries(OPCOES_MATERIAIS).map(([chave, obj]) => (
-                <option key={chave} value={chave}>{obj.nome}</option>
-              ))}
-            </select>
-          </div>
+      {/* GRID RESPONSIVO: Formulário à esquerda, Resultados à direita */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {/* COLUNA ESQUERDA: FORMULÁRIO DE CÁLCULO */}
+        <div className="lg:col-span-7 bg-white p-4 md:p-8 rounded-2xl border border-zinc-100 shadow-sm">
+          <form onSubmit={realizarCalculo} className="flex flex-col gap-6">
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-zinc-900 text-sm font-bold mb-2">Superfície</label>
+                <select 
+                  className="w-full p-4 md:p-3 border border-zinc-300 rounded-xl text-zinc-900 bg-white focus:ring-2 focus:ring-orange-600 outline-none transition-all"
+                  value={superficie}
+                  onChange={(e) => {
+                    setSuperficie(e.target.value);
+                    setMaterial(""); 
+                  }}
+                  required
+                >
+                  <option value="" disabled hidden>Selecione...</option>
+                  {Object.entries(OPCOES_MATERIAIS).map(([chave, obj]) => (
+                    <option key={chave} value={chave}>{obj.nome}</option>
+                  ))}
+                </select>
+              </div>
 
-          <div>
-            <label className="block text-gray-800 text-xl font-bold mb-2">Tipo de material</label>
-            <select
-              className="w-full p-4 border border-gray-300 rounded-lg text-lg text-black bg-white focus:ring-2 focus:ring-orange-600 outline-none disabled:bg-gray-100"
-              value={material}
-              onChange={(e) => setMaterial(e.target.value)}
-              required
-              disabled={!superficie}
-            >
-              <option value="" disabled hidden>
-                {superficie ? "Selecione o material" : "Escolha a superfície primeiro"}
-              </option>
-              {superficie && OPCOES_MATERIAIS[superficie].tipos.map((tipo) => (
-                <option key={tipo} value={tipo}>{tipo}</option>
-              ))}
-            </select>
-          </div>
-
-          {superficie === "piso" && (
-            <div className="bg-orange-50 p-4 rounded-lg border border-orange-200 animate-fade-in">
-              <p className="text-orange-800 font-bold text-sm mb-3 underline">Dimensões da Peça de Piso (Opcional):</p>
-              <div className="flex gap-4">
-                <div className="w-1/2">
-                  <label className="block text-gray-700 text-xs font-bold mb-1">Comprimento (cm)</label>
-                  <input
-                    type="number"
-                    className="w-full p-2 border border-orange-300 rounded bg-white text-black text-sm"
-                    value={comprimentoPiso}
-                    onChange={(e) => setComprimentoPiso(e.target.value)}
-                    placeholder="Ex: 60"
-                  />
-                </div>
-                <div className="w-1/2">
-                  <label className="block text-gray-700 text-xs font-bold mb-1">Largura (cm)</label>
-                  <input
-                    type="number"
-                    className="w-full p-2 border border-orange-300 rounded bg-white text-black text-sm"
-                    value={larguraPiso}
-                    onChange={(e) => setLarguraPiso(e.target.value)}
-                    placeholder="Ex: 60"
-                  />
-                </div>
+              <div>
+                <label className="block text-zinc-900 text-sm font-bold mb-2">Tipo de material</label>
+                <select
+                  className="w-full p-4 md:p-3 border border-zinc-300 rounded-xl text-zinc-900 bg-white focus:ring-2 focus:ring-orange-600 outline-none disabled:bg-zinc-100 disabled:text-zinc-400 transition-all"
+                  value={material}
+                  onChange={(e) => setMaterial(e.target.value)}
+                  required
+                  disabled={!superficie}
+                >
+                  <option value="" disabled hidden>
+                    {superficie ? "Selecione o material" : "Escolha a superfície..."}
+                  </option>
+                  {superficie && OPCOES_MATERIAIS[superficie].tipos.map((tipo) => (
+                    <option key={tipo} value={tipo}>{tipo}</option>
+                  ))}
+                </select>
               </div>
             </div>
-          )}
 
-          {/* BLOCO DINÂMICO DE MEDIÇÕES (CADERNINHO DIGITAL) */}
-          <div className="border-t border-gray-200 pt-4">
-            <div className="flex justify-between items-center mb-4">
-              <label className="block text-gray-800 text-xl font-bold">Medições</label>
-              <button 
-                type="button" 
-                onClick={adicionarMedida}
-                className="text-sm bg-orange-100 text-orange-700 px-3 py-1 rounded-full font-bold hover:bg-orange-200 transition"
-              >
-                + Adicionar Área
-              </button>
-            </div>
-
-            <div className="flex flex-col gap-3">
-              {medidas.map((medida, index) => (
-                <div key={medida.id} className="flex gap-2 items-end bg-gray-50 p-3 rounded-lg border border-gray-200 animate-fade-in">
-                  
-                  <div className="w-full">
-                    <label className="block text-gray-600 text-xs font-bold mb-1">Altura {index + 1} (m)</label>
+            {/* Opcional: Tamanho do Piso */}
+            {superficie === "piso" && (
+              <div className="bg-orange-50 p-4 md:p-5 rounded-xl border border-orange-200 animate-in fade-in">
+                <p className="text-orange-800 font-bold text-sm mb-3 flex items-center gap-2">
+                  <Ruler size={16} /> Dimensões da Peça (Opcional para calcular nº de peças)
+                </p>
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <label className="block text-orange-900 text-xs font-bold mb-1">Comprimento (cm)</label>
                     <input
-                      type="text"
-                      inputMode="decimal"
-                      className="w-full p-3 border border-gray-300 rounded-lg text-base text-black outline-none focus:ring-2 focus:ring-orange-600"
-                      value={medida.altura}
-                      onChange={(e) => atualizarMedida(medida.id, "altura", e.target.value)}
-                      placeholder="Ex: 3"
-                      required
+                      type="number"
+                      className="w-full p-3 border border-orange-300 rounded-lg bg-white text-zinc-900 text-sm focus:ring-2 focus:ring-orange-600 outline-none"
+                      value={comprimentoPiso}
+                      onChange={(e) => setComprimentoPiso(e.target.value)}
+                      placeholder="Ex: 60"
                     />
                   </div>
-                  
-                  <div className="w-full">
-                    <label className="block text-gray-600 text-xs font-bold mb-1">Largura {index + 1} (m)</label>
+                  <div className="flex-1">
+                    <label className="block text-orange-900 text-xs font-bold mb-1">Largura (cm)</label>
                     <input
-                      type="text"
-                      inputMode="decimal"
-                      className="w-full p-3 border border-gray-300 rounded-lg text-base text-black outline-none focus:ring-2 focus:ring-orange-600"
-                      value={medida.largura}
-                      onChange={(e) => atualizarMedida(medida.id, "largura", e.target.value)}
-                      placeholder="Ex: 4"
-                      required
+                      type="number"
+                      className="w-full p-3 border border-orange-300 rounded-lg bg-white text-zinc-900 text-sm focus:ring-2 focus:ring-orange-600 outline-none"
+                      value={larguraPiso}
+                      onChange={(e) => setLarguraPiso(e.target.value)}
+                      placeholder="Ex: 60"
                     />
                   </div>
-                  
-                  {/* BOTÕES LADO A LADO: [+] E [X] */}
-                  <div className="flex gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={adicionarMedida}
-                      className="bg-green-100 text-green-700 h-12 w-12 rounded-lg font-black text-2xl hover:bg-green-200 transition flex items-center justify-center"
-                      title="Adicionar nova medida"
-                    >
-                      +
-                    </button>
-                    
-                    {medidas.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removerMedida(medida.id)}
-                        className="bg-red-100 text-red-600 h-12 w-12 rounded-lg font-bold text-xl hover:bg-red-200 transition flex items-center justify-center"
-                        title="Remover medida"
-                      >
-                        X
-                      </button>
-                    )}
-                  </div>                  
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            className="w-full bg-slate-800 text-white font-bold p-5 rounded-lg text-2xl hover:bg-slate-900 transition mt-2 shadow-sm"
-          >
-            Calcular Total
-          </button>
-        </form>
-
-        {/* ... (Resultado continua igual) ... */}
-        {resultado && (
-          <div className="mt-6 p-6 bg-green-50 text-green-900 rounded-xl shadow-md border border-green-200 animate-fade-in">
-            <h3 className="font-bold text-xl mb-3 border-b border-green-300 pb-2 text-green-900">Resultado do Cálculo:</h3>
-            <p className="text-gray-800 font-semibold mb-1">Material: <span className="font-black text-gray-900">{resultado.materialNome}</span></p>
-            <p className="text-3xl font-black text-green-900 mb-1">{resultado.quantidade} <span className="text-lg font-bold">{resultado.unidade}</span></p>
-            
-            {resultado.totalPecas && (
-                <div className="bg-green-200 p-3 rounded-lg mt-2 border border-green-300">
-                    <p className="text-green-900 font-bold">Estimativa de Peças:</p>
-                    <p className="text-2xl font-black">~ {resultado.totalPecas} unidades</p>
-                    <p className="text-xs italic">*Considerando o tamanho informado ({comprimentoPiso}x{larguraPiso}cm)</p>
-                </div>
+              </div>
             )}
 
-            <p className="text-sm text-green-800 mt-3 font-medium">Área total s/ quebra: {resultado.area} m²</p>
+            {/* O CADERNINHO DIGITAL (Medições) */}
+            <div className="pt-2">
+              <div className="flex justify-between items-center mb-4">
+                <label className="block text-zinc-900 text-lg font-bold">Caderninho de Medições</label>
+                <button 
+                  type="button" 
+                  onClick={adicionarMedida}
+                  className="flex items-center gap-1 text-sm bg-orange-100 text-orange-700 px-4 py-2 rounded-full font-bold hover:bg-orange-200 transition-colors"
+                >
+                  <Plus size={16} /> Nova Área
+                </button>
+              </div>
 
-            <div className="mt-6 pt-5 border-t border-green-300 text-left">
-              <label className="block text-sm font-bold mb-2 text-green-900">
-                Vincular a uma obra existente:
-              </label>
-              
-              <select
-                className="w-full p-3 mb-4 rounded-lg border border-green-400 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-700 font-semibold"
-                value={projetoSelecionado}
-                onChange={(e) => setProjetoSelecionado(e.target.value)}
-              >
-                <option value="">Selecione um projeto...</option>
-                {projetos.map((proj) => (
-                  <option key={proj.id} value={proj.id}>
-                    {proj.titulo}
-                  </option>
+              <div className="flex flex-col gap-3">
+                {medidas.map((medida, index) => (
+                  <div key={medida.id} className="flex gap-2 items-end bg-zinc-50 p-3 md:p-4 rounded-xl border border-zinc-200 animate-in slide-in-from-left-2">
+                    
+                    <div className="w-full">
+                      <label className="block text-zinc-600 text-xs font-bold mb-1">Altura {index + 1} (m)</label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        className="w-full p-4 md:p-3 border border-zinc-300 rounded-lg text-base md:text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 transition-all"
+                        value={medida.altura}
+                        onChange={(e) => atualizarMedida(medida.id, "altura", e.target.value)}
+                        placeholder="Ex: 3"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="w-full">
+                      <label className="block text-zinc-600 text-xs font-bold mb-1">Largura {index + 1} (m)</label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        className="w-full p-4 md:p-3 border border-zinc-300 rounded-lg text-base md:text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 transition-all"
+                        value={medida.largura}
+                        onChange={(e) => atualizarMedida(medida.id, "largura", e.target.value)}
+                        placeholder="Ex: 4"
+                        required
+                      />
+                    </div>
+                    
+                    {/* Botões de Ação Dinâmicos */}
+                    <div className="flex gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={adicionarMedida}
+                        className="bg-zinc-200 text-zinc-700 h-14 w-12 md:h-11 md:w-11 rounded-lg font-black text-xl hover:bg-zinc-300 transition-colors flex items-center justify-center"
+                        title="Adicionar nova medida abaixo"
+                      >
+                        +
+                      </button>
+                      
+                      {medidas.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removerMedida(medida.id)}
+                          className="bg-red-100 text-red-600 h-14 w-12 md:h-11 md:w-11 rounded-lg font-bold hover:bg-red-200 transition-colors flex items-center justify-center"
+                          title="Remover esta medida"
+                        >
+                          <X size={20} />
+                        </button>
+                      )}
+                    </div>                  
+                  </div>
                 ))}
-              </select>
-
-              <button
-                onClick={salvarNoProjeto}
-                disabled={!projetoSelecionado || salvando}
-                className="w-full bg-green-700 text-white p-4 rounded-lg text-lg font-bold hover:bg-green-800 disabled:opacity-50 transition-colors shadow-sm"
-              >
-                {salvando ? "Salvando..." : "Salvar Material na Obra"}
-              </button>
+              </div>
             </div>
+
+            <button
+              type="submit"
+              className="w-full flex items-center justify-center gap-2 bg-zinc-900 text-white font-bold p-5 md:p-4 rounded-xl text-xl md:text-lg hover:bg-zinc-800 transition-colors mt-2 shadow-sm"
+            >
+              <Calculator size={24} />
+              Calcular Total
+            </button>
+          </form>
+        </div>
+
+        {/* COLUNA DIREITA: RESULTADOS E INTEGRAÇÃO COM PROJETOS */}
+        <div className="lg:col-span-5">
+          <div className="sticky top-6">
+            {!resultado ? (
+              // Estado Vazio (Placeholder antes de calcular)
+              <div className="bg-zinc-50 border border-zinc-200 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center text-center h-full min-h-75">
+                <Calculator size={48} className="text-zinc-300 mb-4" />
+                <h3 className="text-zinc-500 font-bold text-lg">Aguardando Medições</h3>
+                <p className="text-zinc-400 text-sm mt-2 max-w-xs">Preencha o formulário ao lado e clique em calcular para ver o detalhamento de materiais aqui.</p>
+              </div>
+            ) : (
+              // Card de Resultado (Gerado após o cálculo)
+              <div className="bg-white rounded-2xl border border-emerald-200 shadow-lg overflow-hidden animate-in slide-in-from-bottom-4">
+                
+                {/* Header do Resultado */}
+                <div className="bg-emerald-50 p-6 border-b border-emerald-100">
+                  <div className="flex items-center gap-2 text-emerald-800 mb-4">
+                    <CheckCircle2 size={24} />
+                    <h3 className="font-bold text-xl">Resultado Final</h3>
+                  </div>
+                  
+                  <p className="text-emerald-700 text-sm font-semibold mb-1 uppercase tracking-wide">
+                    {superficie} • {resultado.materialNome}
+                  </p>
+                  <div className="flex items-baseline gap-2 text-emerald-950">
+                    <span className="text-5xl font-black tracking-tight">{resultado.quantidade}</span>
+                    <span className="text-xl font-bold">{resultado.unidade}</span>
+                  </div>
+                  
+                  <p className="text-sm text-emerald-700 mt-3 font-medium flex items-center gap-1">
+                    <Ruler size={14} /> Área total s/ quebra: {resultado.area} m²
+                  </p>
+                </div>
+
+                {/* Estimativa de Peças */}
+                {resultado.totalPecas && (
+                  <div className="bg-emerald-100/50 p-4 border-b border-emerald-100">
+                    <p className="text-emerald-800 font-bold text-sm mb-1">Estimativa de Peças:</p>
+                    <p className="text-2xl font-black text-emerald-950">~ {resultado.totalPecas} unidades</p>
+                    <p className="text-xs text-emerald-600 italic mt-1">*Considerando peça de {comprimentoPiso}x{larguraPiso}cm</p>
+                  </div>
+                )}
+
+                {/* Seção: Salvar no Projeto */}
+                <div className="p-6 bg-white">
+                  <label className="block text-sm font-bold mb-3 text-zinc-900 items-center gap-2">
+                    <Building2 size={16} className="text-orange-600"/> Vincular a uma Obra Ativa
+                  </label>
+                  
+                  <select
+                    className="w-full p-4 md:p-3 mb-4 rounded-xl border border-zinc-300 bg-zinc-50 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-orange-600 font-medium transition-all"
+                    value={projetoSelecionado}
+                    onChange={(e) => setProjetoSelecionado(e.target.value)}
+                  >
+                    <option value="" disabled hidden>Selecione um projeto...</option>
+                    {projetos.length === 0 ? (
+                      <option disabled>Nenhum projeto encontrado.</option>
+                    ) : (
+                      projetos.map((proj) => (
+                        <option key={proj.id} value={proj.id}>
+                          {proj.titulo}
+                        </option>
+                      ))
+                    )}
+                  </select>
+
+                  <button
+                    onClick={salvarNoProjeto}
+                    disabled={!projetoSelecionado || salvando}
+                    className="w-full flex items-center justify-center gap-2 bg-orange-600 text-white p-4 md:p-3 rounded-xl md:text-lg font-bold hover:bg-orange-700 disabled:opacity-50 disabled:bg-zinc-300 disabled:text-zinc-500 transition-colors shadow-sm"
+                  >
+                    <Save size={20} />
+                    {salvando ? "Salvando..." : "Salvar Material na Obra"}
+                  </button>
+                </div>
+
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
       </div>
-    </main>
+    </div>
   );
 }

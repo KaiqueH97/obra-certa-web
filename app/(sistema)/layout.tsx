@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { HardHat, LayoutDashboard, Calculator, FolderKanban, Settings, LogOut } from "lucide-react";
+import { HardHat, LayoutDashboard, Calculator, FolderKanban, Settings, LogOut, Users } from "lucide-react";
 
 export default function SistemaLayout({
   children,
@@ -42,6 +42,12 @@ export default function SistemaLayout({
             className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${isActive('/calcular') ? 'bg-orange-600/10 text-orange-500 font-medium' : 'hover:bg-zinc-800 hover:text-white'}`}
           >
             <Calculator size={20} /> Calculadora
+          </Link>
+          <Link 
+            href="/equipe" 
+            className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${isActive('/equipe') ? 'bg-orange-600/10 text-orange-500 font-medium' : 'hover:bg-zinc-800 hover:text-white'}`}
+          >
+            <Users size={20} /> Equipe
           </Link>
         </nav>
 
@@ -89,6 +95,10 @@ export default function SistemaLayout({
           <Link href="/calcular" className={`flex flex-col items-center p-2 rounded-xl transition-colors ${isActive('/calcular') ? 'text-orange-600' : 'text-zinc-500 hover:text-zinc-900'}`}>
             <Calculator size={24} />
             <span className="text-[10px] font-medium mt-1">Calcular</span>
+          </Link>
+          <Link href="/equipe" className={`flex flex-col items-center p-2 rounded-xl transition-colors ${isActive('/equipe') ? 'text-orange-600' : 'text-zinc-500 hover:text-zinc-900'}`}>
+            <Users size={24} />
+            <span className="text-[10px] font-medium mt-1">Equipe</span>
           </Link>
           <Link href="/perfil" className={`flex flex-col items-center p-2 rounded-xl transition-colors ${isActive('/perfil') ? 'text-orange-600' : 'text-zinc-500 hover:text-zinc-900'}`}>
             <Settings size={24} />

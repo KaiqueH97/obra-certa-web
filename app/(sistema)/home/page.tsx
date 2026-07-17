@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { Building2, AlertCircle, CheckCircle2, DollarSign, Download, Calculator, FolderKanban, ArrowRight } from "lucide-react";
+import { Building2, AlertCircle, CheckCircle2, DollarSign, Download, Calculator, FolderKanban, ArrowRight, Users } from "lucide-react";
 
 // Tipagens para os dados que vamos buscar
 interface ProjetoResumo {
@@ -98,6 +98,10 @@ export default function HomeDashboard() {
         <Link href="/projetos" className="flex items-center justify-center gap-2 bg-zinc-800 text-white font-bold p-4 rounded-xl text-xl shadow-md hover:bg-zinc-900 transition">
           <FolderKanban size={24} />
           Meus Projetos
+        </Link>
+        <Link href="/equipe" className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 text-white font-bold p-4 rounded-xl text-lg shadow-sm hover:bg-emerald-700 transition">
+          <Users size={24} />
+          Minha Equipe
         </Link>
       </div>
 

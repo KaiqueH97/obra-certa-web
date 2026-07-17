@@ -417,7 +417,7 @@ export default function DetalhesDoProjeto() {
                   <div className="flex flex-col sm:flex-row gap-3">
                     <input 
                       type="text" 
-                      className="sm:w-48 p-3 border border-zinc-300 rounded-xl text-sm text-zinc-900 placeholder-zinc-500 outline-none focus:ring-2 focus:ring-emerald-600 transition-all" 
+                      className="sm:w-1/2 p-3 border border-zinc-300 rounded-xl text-sm text-zinc-900 placeholder-zinc-500 outline-none focus:ring-2 focus:ring-emerald-600 transition-all" 
                       placeholder={novaTransacao.tipo === "RECEBIMENTO_CLIENTE" ? "Ex: Sinal / 1ª Parcela" : "Ex: Adiantamento / 3 dias"} 
                       value={novaTransacao.descricao} 
                       onChange={(e) => setNovaTransacao({ ...novaTransacao, descricao: e.target.value })} 

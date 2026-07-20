@@ -29,7 +29,7 @@ export default function SistemaLayout({
             href="/home" 
             className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${isActive('/home') ? 'bg-orange-600/10 text-orange-500 font-medium' : 'hover:bg-zinc-800 hover:text-white'}`}
           >
-            <LayoutDashboard size={20} /> Dashboard
+            <LayoutDashboard size={20} /> Início
           </Link>
           <Link 
             href="/projetos" 

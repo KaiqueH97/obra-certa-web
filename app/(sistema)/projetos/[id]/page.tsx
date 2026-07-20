@@ -147,18 +147,25 @@ export default function DetalhesDoProjeto() {
   };
 
   const confirmarExclusaoMaterial = (id: number) => {
+    toast.dismiss(); 
+    
     toast(
       (t) => (
         <div className="flex flex-col gap-2">
           <p className="font-bold text-zinc-900 text-lg">Excluir material?</p>
           <p className="text-sm text-zinc-600 mb-2">Ele será removido permanentemente deste orçamento.</p>
           <div className="flex justify-end gap-2">
-            <button onClick={() => toast.dismiss(t.id)} className="px-4 py-2 bg-zinc-200 text-zinc-800 rounded-lg font-bold hover:bg-zinc-300 transition-colors">Cancelar</button>
-            <button onClick={() => { toast.dismiss(t.id); executarExclusaoMaterial(id); }} className="px-4 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition-colors">Sim, Excluir</button>
+            <button onClick={() => toast.dismiss(t.id)} className="px-4 py-2 bg-zinc-200 text-zinc-800 rounded-lg font-bold hover:bg-zinc-300 transition-colors">
+              Cancelar
+            </button>
+            <button onClick={() => { toast.dismiss(t.id); executarExclusaoMaterial(id); }} className="px-4 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition-colors shadow-sm">
+              Sim, Excluir
+            </button>
           </div>
         </div>
       ),
-      { duration: Infinity, id: 'exclusao-toast' }
+      // 2. ID dinâmico: garante que o React saiba exatamente qual item está sendo apagado
+      { duration: Infinity, id: `exclusao-${id}` } 
     );
   };
 

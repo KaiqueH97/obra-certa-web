@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import toast from "react-hot-toast";
-import { Calculator, Plus, X, Building2, Save, Ruler, CheckCircle2 } from "lucide-react";
+import { Calculator, Plus, X, Building2, Save, Ruler, CheckCircle2, DollarSign } from "lucide-react";
 
 const OPCOES_MATERIAIS: Record<string, { nome: string; tipos: string[] }> = {
   piso: {
@@ -54,6 +54,7 @@ export default function Calculadora() {
   const [medidas, setMedidas] = useState([{ id: 1, altura: "", largura: "" }]);  
   const [comprimentoPiso, setComprimentoPiso] = useState("");
   const [larguraPiso, setLarguraPiso] = useState("");
+  const [precoUnitario, setPrecoUnitario] = useState(""); // NOVO ESTADO: Preço do material
   
   const [resultado, setResultado] = useState<{ 
     quantidade: string; 
@@ -61,6 +62,7 @@ export default function Calculadora() {
     area: string; 
     materialNome: string;
     totalPecas?: number; 
+    precoTotalEstimado?: number;
   } | null>(null);
 
   const [projetos, setProjetos] = useState<{ id: number; titulo: string }[]>([]);
@@ -134,7 +136,7 @@ export default function Calculadora() {
         break;
       case "pintura":
         qtdComQuebra = areaTotal;
-        unid = "m² (Consultar rendimento da lata)";
+        unid = "m² (Consultar rendimento)";
         break;
       default:
         qtdComQuebra = areaTotal;
@@ -142,15 +144,23 @@ export default function Calculadora() {
         break;
     }
 
+    // LÓGICA: Calcular o valor total em Reais se o usuário preencheu o preço
+    const precoNum = parseFloat(precoUnitario.replace(/\./g, "").replace(",", "."));
+    let custoTotal = 0;
+    if (!isNaN(precoNum) && precoNum > 0) {
+      // Se for piso com peças, multiplica pelo metro quadrado. Para os outros, também pelo metro.
+      custoTotal = qtdComQuebra * precoNum; 
+    }
+
     setResultado({
       quantidade: qtdComQuebra.toFixed(2).replace(".", ","),
       unidade: unid,
       area: areaTotal.toFixed(2).replace(".", ","),
       materialNome: material || OPCOES_MATERIAIS[superficie]?.nome || "Material",
-      totalPecas: pecasEstimadas > 0 ? pecasEstimadas : undefined
+      totalPecas: pecasEstimadas > 0 ? pecasEstimadas : undefined,
+      precoTotalEstimado: custoTotal > 0 ? custoTotal : undefined // Salva o total calculado
     });
     
-    // Pequeno feedback visual para o usuário
     toast.success("Cálculo realizado com sucesso!");
   };
 
@@ -162,16 +172,18 @@ export default function Calculadora() {
     const infoPecas = resultado.totalPecas ? ` (~${resultado.totalPecas} peças)` : "";
     const quantidadeSalva = `${resultado.quantidade} ${resultado.unidade}${infoPecas}`;
 
+    // LÓGICA DE INSERÇÃO ATUALIZADA (Inclui o preco_total no banco!)
     const { error } = await supabase.from("materiais_projeto").insert([
       { 
         projeto_id: parseInt(projetoSelecionado), 
         nome: resultado.materialNome, 
-        quantidade: quantidadeSalva 
+        quantidade: quantidadeSalva,
+        preco_total: resultado.precoTotalEstimado || 0 
       }
     ]);
 
     if (!error) {
-      toast.success("Material salvo no projeto com sucesso!", { id: toastId });
+      toast.success("Material e preço salvos no projeto!", { id: toastId });
     } else {
       toast.error("Erro ao salvar: " + error.message, { id: toastId });
     }
@@ -188,7 +200,7 @@ export default function Calculadora() {
         </div>
         <div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-zinc-900 tracking-tight">Calculadora Inteligente</h1>
-          <p className="text-sm md:text-base text-zinc-500 mt-1">Some áreas, adicione quebras e estime materiais em segundos.</p>
+          <p className="text-sm md:text-base text-zinc-500 mt-1">Some áreas, adicione quebras e estime materiais e custos em segundos.</p>
         </div>
       </div>
 
@@ -241,7 +253,7 @@ export default function Calculadora() {
             {superficie === "piso" && (
               <div className="bg-orange-50 p-4 md:p-5 rounded-xl border border-orange-200 animate-in fade-in">
                 <p className="text-orange-800 font-bold text-sm mb-3 flex items-center gap-2">
-                  <Ruler size={16} /> Dimensões da Peça (Opcional para calcular nº de peças)
+                  <Ruler size={16} /> Dimensões da Peça (Opcional)
                 </p>
                 <div className="flex gap-4">
                   <div className="flex-1">
@@ -311,13 +323,11 @@ export default function Calculadora() {
                       />
                     </div>
                     
-                    {/* Botões de Ação Dinâmicos */}
                     <div className="flex gap-1 shrink-0">
                       <button
                         type="button"
                         onClick={adicionarMedida}
                         className="bg-zinc-200 text-zinc-700 h-14 w-12 md:h-11 md:w-11 rounded-lg font-black text-xl hover:bg-zinc-300 transition-colors flex items-center justify-center"
-                        title="Adicionar nova medida abaixo"
                       >
                         +
                       </button>
@@ -327,7 +337,6 @@ export default function Calculadora() {
                           type="button"
                           onClick={() => removerMedida(medida.id)}
                           className="bg-red-100 text-red-600 h-14 w-12 md:h-11 md:w-11 rounded-lg font-bold hover:bg-red-200 transition-colors flex items-center justify-center"
-                          title="Remover esta medida"
                         >
                           <X size={20} />
                         </button>
@@ -336,6 +345,25 @@ export default function Calculadora() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* NOVO CAMPO: Valor por m2/Unidade */}
+            <div className="bg-emerald-50 p-4 md:p-5 rounded-xl border border-emerald-200 mt-2">
+               <label className="block text-emerald-900 text-sm font-bold mb-2 items-center gap-1">
+                 <DollarSign size={16} /> Preço do m² / Unidade (Opcional)
+               </label>
+               <div className="flex items-center bg-white border border-emerald-300 rounded-lg px-3 focus-within:ring-2 focus-within:ring-emerald-600 transition-all shadow-sm">
+                 <span className="text-emerald-700 font-bold text-sm">R$</span>
+                 <input
+                   type="text"
+                   inputMode="decimal"
+                   className="w-full p-3 outline-none text-zinc-900 bg-transparent text-right font-bold"
+                   value={precoUnitario}
+                   onChange={(e) => setPrecoUnitario(e.target.value)}
+                   placeholder="0,00"
+                 />
+               </div>
+               <p className="text-xs text-emerald-700 mt-2 font-medium">Preencha para já incluir o valor financeiro no caixa da sua obra.</p>
             </div>
 
             <button
@@ -352,17 +380,14 @@ export default function Calculadora() {
         <div className="lg:col-span-5">
           <div className="sticky top-6">
             {!resultado ? (
-              // Estado Vazio (Placeholder antes de calcular)
               <div className="bg-zinc-50 border border-zinc-200 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center text-center h-full min-h-75">
                 <Calculator size={48} className="text-zinc-300 mb-4" />
                 <h3 className="text-zinc-500 font-bold text-lg">Aguardando Medições</h3>
                 <p className="text-zinc-400 text-sm mt-2 max-w-xs">Preencha o formulário ao lado e clique em calcular para ver o detalhamento de materiais aqui.</p>
               </div>
             ) : (
-              // Card de Resultado (Gerado após o cálculo)
               <div className="bg-white rounded-2xl border border-emerald-200 shadow-lg overflow-hidden animate-in slide-in-from-bottom-4">
                 
-                {/* Header do Resultado */}
                 <div className="bg-emerald-50 p-6 border-b border-emerald-100">
                   <div className="flex items-center gap-2 text-emerald-800 mb-4">
                     <CheckCircle2 size={24} />
@@ -382,7 +407,6 @@ export default function Calculadora() {
                   </p>
                 </div>
 
-                {/* Estimativa de Peças */}
                 {resultado.totalPecas && (
                   <div className="bg-emerald-100/50 p-4 border-b border-emerald-100">
                     <p className="text-emerald-800 font-bold text-sm mb-1">Estimativa de Peças:</p>
@@ -391,7 +415,14 @@ export default function Calculadora() {
                   </div>
                 )}
 
-                {/* Seção: Salvar no Projeto */}
+                {/* VISUAL NO RESULTADO: Exibição do Custo Total */}
+                {resultado.precoTotalEstimado && (
+                  <div className="bg-emerald-600 p-4 border-b border-emerald-700 flex justify-between items-center text-white">
+                    <p className="font-bold text-sm text-emerald-100 uppercase tracking-wider">Custo Estimado:</p>
+                    <p className="text-2xl font-black">R$ {resultado.precoTotalEstimado.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                  </div>
+                )}
+
                 <div className="p-6 bg-white">
                   <label className="block text-sm font-bold mb-3 text-zinc-900 items-center gap-2">
                     <Building2 size={16} className="text-orange-600"/> Vincular a uma Obra Ativa

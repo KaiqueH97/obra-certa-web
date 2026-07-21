@@ -32,8 +32,11 @@ export default function Home() {
       toast.error("Erro ao entrar: " + error.message, { id: toastId });
       setCarregando(false); // Só libera a tela se der erro
     } else {
-      toast.success("Login realizado com sucesso!", { id: toastId });
-      router.push("/home");
+      toast.success("Login realizado com sucesso!", { id: toastId, duration: 2000 });
+      
+      setTimeout(() => {
+        router.push("/home");
+      }, 1000);
     }
   };
 

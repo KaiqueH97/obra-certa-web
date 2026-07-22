@@ -172,7 +172,6 @@ export default function Calculadora() {
     const infoPecas = resultado.totalPecas ? ` (~${resultado.totalPecas} peças)` : "";
     const quantidadeSalva = `${resultado.quantidade} ${resultado.unidade}${infoPecas}`;
 
-    // LÓGICA DE INSERÇÃO ATUALIZADA (Inclui o preco_total no banco!)
     const { error } = await supabase.from("materiais_projeto").insert([
       { 
         projeto_id: parseInt(projetoSelecionado), 
@@ -184,6 +183,16 @@ export default function Calculadora() {
 
     if (!error) {
       toast.success("Material e preço salvos no projeto!", { id: toastId });
+      
+      setResultado(null); // Faz o painel direito voltar para "Aguardando Medições"
+      setSuperficie("");  // Limpa o select principal
+      setMaterial("");    // Limpa o select secundário
+      setMedidas([{ id: Date.now(), altura: "", largura: "" }]); // Zera o caderninho para 1 linha vazia
+      setComprimentoPiso(""); // Limpa os campos opcionais
+      setLarguraPiso("");
+      setPrecoUnitario("");
+      // Não resetamos o `projetoSelecionado` de propósito para agilizar os próximos lançamentos!
+
     } else {
       toast.error("Erro ao salvar: " + error.message, { id: toastId });
     }

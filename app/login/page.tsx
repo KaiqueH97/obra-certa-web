@@ -4,7 +4,7 @@ import { useState } from "react";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import toast, { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
 
 export default function Home() {
   const [email, setEmail] = useState("");
@@ -30,11 +30,12 @@ export default function Home() {
 
     if (error) {
       toast.error("Erro ao entrar: " + error.message, { id: toastId });
-      setCarregando(false); // Só libera a tela se der erro
+      setCarregando(false); 
     } else {
-      toast.success("Login realizado com sucesso!", { id: toastId, duration: 2000 });
+      toast.success("Login realizado com sucesso!", { id: toastId, duration: 1500 });
       
       setTimeout(() => {
+        toast.dismiss(); 
         router.push("/home");
       }, 1000);
     }
@@ -42,13 +43,9 @@ export default function Home() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
-      {/* Componente para renderizar os Toasts */}
-      <Toaster position="top-center" reverseOrder={false} />
-
       <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-lg border border-gray-200 animate-fade-in">
         <h1 className="text-4xl font-black text-center text-orange-600 mb-8">Obra Certa</h1>
 
-        {/* Mudamos para onSubmit na tag form para habilitar o "Enter" do teclado */}
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
             <label className="block text-gray-800 text-lg font-bold mb-2">E-mail</label>
@@ -76,7 +73,6 @@ export default function Home() {
             />
           </div>
 
-          {/* Entrar */}
           <div className="mt-8">
             <button
               type="submit"
@@ -87,7 +83,6 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Links para recuperação de senha e cadastro */}
           <div className="mt-6 flex flex-col gap-3 text-center border-t border-gray-100 pt-6">
             <Link href="/recuperar" className="text-gray-500 font-medium hover:text-orange-600 transition">
               Esqueceu sua senha?

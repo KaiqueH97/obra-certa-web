@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
 import { HardHat, LayoutDashboard, Calculator, FolderKanban, Settings, LogOut, Users } from "lucide-react";
 
 export default function SistemaLayout({
@@ -11,7 +14,15 @@ export default function SistemaLayout({
 }) {
   const pathname = usePathname();
 
-  // Função auxiliar para saber qual menu está ativo e pintá-lo de laranja
+  const router = useRouter();
+
+  const handleSair = async () => {
+    const toastId = toast.loading("Saindo do sistema...");
+    await supabase.auth.signOut();
+    toast.success("Sessão encerrada.", { id: toastId });
+    router.push("/login");
+  };
+
   const isActive = (path: string) => pathname?.startsWith(path);
 
   return (
@@ -58,7 +69,10 @@ export default function SistemaLayout({
           >
             <Settings size={20} /> Perfil
           </Link>
-          <button className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-red-500/10 hover:text-red-400 transition-colors text-left">
+          <button 
+            onClick={handleSair} 
+            className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-red-500/10 hover:text-red-400 transition-colors text-left"
+          >
             <LogOut size={20} /> Sair
           </button>
         </div>

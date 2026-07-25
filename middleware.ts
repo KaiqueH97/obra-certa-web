@@ -42,7 +42,7 @@ export async function middleware(request: NextRequest) {
   const rotaAtual = request.nextUrl.pathname
   
   // Nossas rotas restritas que estão dentro do grupo (sistema)
-  const rotasProtegidas = ['/home', '/projetos', '/calcular', '/perfil']
+  const rotasProtegidas = ['/home', '/projetos', '/calcular', '/perfil', '/equipe']
   
   // Rotas exclusivas para quem NÃO está logado
   const rotasPublicasAuth = ['/login', '/cadastro']

@@ -7,7 +7,8 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "test:pwa": "node --test tests/pwa-cache.test.mjs"
+    "test:pwa": "node --test tests/pwa-cache.test.mjs",
+    "test:rls": "python3 tests/database/test_rls.py"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",

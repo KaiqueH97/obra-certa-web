@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import toast from "react-hot-toast";
+import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
 import { Calculator, Plus, X, Building2, Save, Ruler, CheckCircle2, DollarSign } from "lucide-react";
 
 const OPCOES_MATERIAIS: Record<string, { nome: string; tipos: string[] }> = {
@@ -49,6 +50,7 @@ const OPCOES_MATERIAIS: Record<string, { nome: string; tipos: string[] }> = {
 };
 
 export default function Calculadora() {
+  const { run, isBusy: salvando } = useConfirmedMutation();
   const [superficie, setSuperficie] = useState("");
   const [material, setMaterial] = useState("");
   const [medidas, setMedidas] = useState([{ id: 1, altura: "", largura: "" }]);  
@@ -67,7 +69,6 @@ export default function Calculadora() {
 
   const [projetos, setProjetos] = useState<{ id: number; titulo: string }[]>([]);
   const [projetoSelecionado, setProjetoSelecionado] = useState("");
-  const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
     const buscarProjetos = async () => {
@@ -166,39 +167,29 @@ export default function Calculadora() {
 
   const salvarNoProjeto = async () => {
     if (!projetoSelecionado || !resultado) return;
-    setSalvando(true);
-
-    const toastId = toast.loading("Salvando material na obra...");
     const infoPecas = resultado.totalPecas ? ` (~${resultado.totalPecas} peças)` : "";
     const quantidadeSalva = `${resultado.quantidade} ${resultado.unidade}${infoPecas}`;
 
-    const { error } = await supabase.from("materiais_projeto").insert([
-      { 
-        projeto_id: parseInt(projetoSelecionado), 
-        nome: resultado.materialNome, 
-        quantidade: quantidadeSalva,
-        preco_total: resultado.precoTotalEstimado || 0 
-      }
-    ]);
-
-    if (!error) {
-      toast.success("Material e preço salvos no projeto!", { id: toastId });
-      
-      setResultado(null); // Faz o painel direito voltar para "Aguardando Medições"
-      setSuperficie("");  // Limpa o select principal
-      setMaterial("");    // Limpa o select secundário
-      setMedidas([{ id: Date.now(), altura: "", largura: "" }]); // Zera o caderninho para 1 linha vazia
-      setComprimentoPiso(""); // Limpa os campos opcionais
-      setLarguraPiso("");
-      setPrecoUnitario("");
-      // Não resetamos o `projetoSelecionado` de propósito para agilizar os próximos lançamentos!
-
-    } else {
-      toast.error("Erro ao salvar: " + error.message, { id: toastId });
-    }
-    setSalvando(false);
+    await run({
+      key: "material-calculado",
+      loading: "Salvando material na obra...",
+      success: "Material e preço salvos no projeto!",
+      request: () => supabase.from("materiais_projeto").insert([{
+        projeto_id: parseInt(projetoSelecionado), nome: resultado.materialNome,
+        quantidade: quantidadeSalva, preco_total: resultado.precoTotalEstimado || 0,
+      }]).select("id").single<{ id: number }>(),
+      onConfirmed: () => {
+        setResultado(null);
+        setSuperficie("");
+        setMaterial("");
+        setMedidas([{ id: Date.now(), altura: "", largura: "" }]);
+        setComprimentoPiso("");
+        setLarguraPiso("");
+        setPrecoUnitario("");
+      },
+    });
   };
-  
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       
@@ -219,6 +210,7 @@ export default function Calculadora() {
         {/* COLUNA ESQUERDA: FORMULÁRIO DE CÁLCULO */}
         <div className="lg:col-span-7 bg-white p-4 md:p-8 rounded-2xl border border-zinc-100 shadow-sm">
           <form onSubmit={realizarCalculo} className="flex flex-col gap-6">
+            <fieldset disabled={salvando} className="contents">
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -382,6 +374,7 @@ export default function Calculadora() {
               <Calculator size={24} />
               Calcular Total
             </button>
+            </fieldset>
           </form>
         </div>
 
@@ -439,7 +432,7 @@ export default function Calculadora() {
                   
                   <select
                     className="w-full p-4 md:p-3 mb-4 rounded-xl border border-zinc-300 bg-zinc-50 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-orange-600 font-medium transition-all"
-                    value={projetoSelecionado}
+                    disabled={salvando} value={projetoSelecionado}
                     onChange={(e) => setProjetoSelecionado(e.target.value)}
                   >
                     <option value="" disabled hidden>Selecione um projeto...</option>

@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
+import { MutationError } from "@/lib/confirmed-mutation";
 import toast from "react-hot-toast";
 import { Users, HardHat, DollarSign, Plus, Trash2, Edit2, X, Save, ArrowLeft } from "lucide-react";
 
@@ -14,6 +16,7 @@ interface Funcionario {
 }
 
 export default function EquipePage() {
+  const { run, isBusy } = useConfirmedMutation();
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [carregando, setCarregando] = useState(true);
   
@@ -21,7 +24,7 @@ export default function EquipePage() {
   const [novoNome, setNovoNome] = useState("");
   const [novoCargo, setNovoCargo] = useState("");
   const [novaDiaria, setNovaDiaria] = useState("");
-  const [salvando, setSalvando] = useState(false);
+  const salvando = isBusy;
 
   // Estados de edição
   const [editandoId, setEditandoId] = useState<number | null>(null);
@@ -55,34 +58,25 @@ export default function EquipePage() {
   const criarFuncionario = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!novoNome.trim()) return toast.error("O nome é obrigatório.");
-
-    setSalvando(true);
-    const toastId = toast.loading("Cadastrando profissional...");
-    
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (user) {
-      const valorFormatado = formatarMoedaParaBanco(novaDiaria);
-      const { error } = await supabase.from("funcionarios").insert([
-        { 
-          nome: novoNome, 
-          cargo: novoCargo || "Profissional da Obra", 
-          valor_diaria: valorFormatado,
-          user_id: user.id
-        }
-      ]);
-
-      if (!error) {
-        toast.success("Profissional cadastrado!", { id: toastId });
+    await run({
+      key: "equipe",
+      loading: "Cadastrando profissional...",
+      success: "Profissional cadastrado!",
+      request: async () => {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error || !user) throw new MutationError("Não foi possível validar sua sessão. Entre novamente.");
+        return supabase.from("funcionarios").insert([{
+          nome: novoNome, cargo: novoCargo || "Profissional da Obra",
+          valor_diaria: formatarMoedaParaBanco(novaDiaria), user_id: user.id,
+        }]).select("id, nome, cargo, valor_diaria").single<Funcionario>();
+      },
+      onConfirmed: (funcionario) => {
+        setFuncionarios(prev => [funcionario, ...prev]);
         setNovoNome("");
         setNovoCargo("");
         setNovaDiaria("");
-        carregarEquipe();
-      } else {
-        toast.error("Erro ao cadastrar: " + error.message, { id: toastId });
-      }
-    }
-    setSalvando(false);
+      },
+    });
   };
 
   const iniciarEdicao = (func: Funcionario) => {
@@ -94,22 +88,18 @@ export default function EquipePage() {
 
   const salvarEdicao = async (id: number) => {
     if (!editNome.trim()) return toast.error("O nome não pode ficar vazio.");
-    
-    const toastId = toast.loading("Salvando alterações...");
-    const valorFormatado = formatarMoedaParaBanco(editDiaria);
-
-    const { error } = await supabase
-      .from("funcionarios")
-      .update({ nome: editNome, cargo: editCargo, valor_diaria: valorFormatado })
-      .eq("id", id);
-
-    if (!error) {
-      toast.success("Profissional atualizado!", { id: toastId });
-      setEditandoId(null);
-      carregarEquipe();
-    } else {
-      toast.error("Erro ao atualizar: " + error.message, { id: toastId });
-    }
+    await run({
+      key: "equipe",
+      loading: "Salvando alterações...",
+      success: "Profissional atualizado!",
+      request: () => supabase.from("funcionarios").update({
+        nome: editNome, cargo: editCargo, valor_diaria: formatarMoedaParaBanco(editDiaria),
+      }).eq("id", id).select("id, nome, cargo, valor_diaria").single<Funcionario>(),
+      onConfirmed: (funcionario) => {
+        setFuncionarios(prev => prev.map(item => item.id === id ? funcionario : item));
+        setEditandoId(null);
+      },
+    });
   };
 
   const confirmarExclusao = (id: number, nome: string) => {
@@ -131,15 +121,14 @@ export default function EquipePage() {
   };
 
   const executarExclusao = async (id: number) => {
-    const toastId = toast.loading("Removendo profissional...");
-    const { error } = await supabase.from("funcionarios").delete().eq("id", id);
-    
-    if (!error) {
-      toast.success("Profissional removido da equipe.", { id: toastId });
-      setFuncionarios(prev => prev.filter(f => f.id !== id));
-    } else {
-      toast.error("Erro ao remover: " + error.message, { id: toastId });
-    }
+    await run({
+      key: "equipe",
+      loading: "Removendo profissional...",
+      success: "Profissional removido da equipe.",
+      request: () => supabase.from("funcionarios").delete().eq("id", id)
+        .select("id").single<{ id: number }>(),
+      onConfirmed: (funcionario) => setFuncionarios(prev => prev.filter(f => f.id !== funcionario.id)),
+    });
   };
 
   return (
@@ -213,11 +202,11 @@ export default function EquipePage() {
 
               <button
                 type="submit"
-                disabled={salvando || !novoNome.trim()}
+                disabled={carregando || salvando || !novoNome.trim()}
                 className="w-full flex items-center justify-center gap-2 bg-zinc-900 text-white font-bold p-4 rounded-xl mt-2 hover:bg-zinc-800 disabled:opacity-50 transition shadow-md"
               >
                 <Plus size={20} />
-                {salvando ? "Cadastrando..." : "Cadastrar na Equipe"}
+                {salvando ? "Aguarde..." : "Cadastrar na Equipe"}
               </button>
             </form>
           </div>
@@ -247,15 +236,15 @@ export default function EquipePage() {
                     {editandoId === func.id ? (
                       /* MODO EDIÇÃO */
                       <div className="w-full flex flex-col md:flex-row gap-3 bg-orange-50 p-3 rounded-xl border border-orange-300 animate-in fade-in shadow-sm">
-                        <input className="flex-1 p-2 border border-orange-400 rounded-lg outline-none focus:ring-2 focus:ring-orange-600 text-zinc-900 font-medium placeholder-zinc-500 bg-white" value={editNome} onChange={(e) => setEditNome(e.target.value)} placeholder="Nome" />
-                        <input className="flex-1 p-2 border border-orange-400 rounded-lg outline-none focus:ring-2 focus:ring-orange-600 text-zinc-900 font-medium placeholder-zinc-500 bg-white" value={editCargo} onChange={(e) => setEditCargo(e.target.value)} placeholder="Cargo" />
+                        <input className="flex-1 p-2 border border-orange-400 rounded-lg outline-none focus:ring-2 focus:ring-orange-600 text-zinc-900 font-medium placeholder-zinc-500 bg-white" disabled={salvando} value={editNome} onChange={(e) => setEditNome(e.target.value)} placeholder="Nome" />
+                        <input className="flex-1 p-2 border border-orange-400 rounded-lg outline-none focus:ring-2 focus:ring-orange-600 text-zinc-900 font-medium placeholder-zinc-500 bg-white" disabled={salvando} value={editCargo} onChange={(e) => setEditCargo(e.target.value)} placeholder="Cargo" />
                         <div className="flex items-center bg-white border border-orange-400 rounded-lg px-2 focus-within:ring-2 focus-within:ring-orange-600 w-full md:w-32">
                           <span className="text-zinc-600 font-bold text-sm">R$</span>
-                          <input type="text" inputMode="decimal" className="w-full p-2 outline-none text-right font-bold text-zinc-900 placeholder-zinc-500" value={editDiaria} onChange={(e) => setEditDiaria(e.target.value)} placeholder="0,00" />
+                          <input type="text" inputMode="decimal" className="w-full p-2 outline-none text-right font-bold text-zinc-900 placeholder-zinc-500" disabled={salvando} value={editDiaria} onChange={(e) => setEditDiaria(e.target.value)} placeholder="0,00" />
                         </div>
                         <div className="flex gap-2">
-                          <button onClick={() => setEditandoId(null)} className="flex-1 md:flex-none p-3 bg-zinc-300 text-zinc-800 font-bold rounded-lg hover:bg-zinc-400 transition flex items-center justify-center"><X size={18}/></button>
-                          <button onClick={() => salvarEdicao(func.id)} className="flex-1 md:flex-none p-3 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition flex items-center justify-center shadow-sm"><Save size={18}/></button>
+                          <button disabled={salvando} onClick={() => setEditandoId(null)} className="flex-1 md:flex-none p-3 bg-zinc-300 text-zinc-800 font-bold rounded-lg hover:bg-zinc-400 transition flex items-center justify-center"><X size={18}/></button>
+                          <button disabled={salvando} onClick={() => salvarEdicao(func.id)} className="flex-1 md:flex-none p-3 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition flex items-center justify-center shadow-sm"><Save size={18}/></button>
                         </div>
                       </div>
                     ) : (
@@ -281,8 +270,8 @@ export default function EquipePage() {
                           </div>
 
                           <div className="flex items-center gap-2">
-                            <button onClick={() => iniciarEdicao(func)} className="p-2.5 text-zinc-500 hover:text-blue-700 rounded-lg hover:bg-blue-100 transition-colors border border-transparent hover:border-blue-200"><Edit2 size={18} /></button>
-                            <button onClick={() => confirmarExclusao(func.id, func.nome)} className="p-2.5 text-zinc-500 hover:text-red-700 rounded-lg hover:bg-red-100 transition-colors border border-transparent hover:border-red-200"><Trash2 size={18} /></button>
+                            <button disabled={salvando} onClick={() => iniciarEdicao(func)} className="p-2.5 text-zinc-500 hover:text-blue-700 rounded-lg hover:bg-blue-100 transition-colors border border-transparent hover:border-blue-200"><Edit2 size={18} /></button>
+                            <button disabled={salvando} onClick={() => confirmarExclusao(func.id, func.nome)} className="p-2.5 text-zinc-500 hover:text-red-700 rounded-lg hover:bg-red-100 transition-colors border border-transparent hover:border-red-200"><Trash2 size={18} /></button>
                           </div>
                         </div>
                       </>

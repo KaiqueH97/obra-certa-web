@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase"; // Ajustado para o atalho correto da raiz
 import Link from "next/link";
+import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
+import { MutationError } from "@/lib/confirmed-mutation";
 import toast from "react-hot-toast";
 import { Building2, Calendar, MapPin, ArrowRight, Edit2, Trash2, Plus, X, Save } from "lucide-react";
 
@@ -14,9 +16,11 @@ interface Projeto {
 }
 
 export default function Projetos() {
+  const { run, isBusy } = useConfirmedMutation();
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [novoProjeto, setNovoProjeto] = useState("");
-  const [carregando, setCarregando] = useState(true);
+  const [carregandoLista, setCarregandoLista] = useState(true);
+  const carregando = carregandoLista || isBusy;
 
   const [projetoEditando, setProjetoEditando] = useState<number | null>(null);
   const [tituloEditado, setTituloEditado] = useState("");
@@ -33,7 +37,7 @@ export default function Projetos() {
       if (!error && data) {
         setProjetos(data);
       }
-      setCarregando(false);
+      setCarregandoLista(false);
     };
 
     buscarProjetos();
@@ -42,31 +46,21 @@ export default function Projetos() {
   const criarProjeto = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!novoProjeto.trim()) return;
-
-    setCarregando(true); 
-    const toastId = toast.loading("Criando obra...");
-
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (user) {
-      const { error } = await supabase.from("projetos").insert([
-        { titulo: novoProjeto, user_id: user.id }
-      ]);
-
-      if (!error) {
-        setNovoProjeto(""); 
-        toast.success("Obra criada com sucesso!", { id: toastId });
-        
-        const { data } = await supabase
-          .from("projetos")
-          .select("*")
-          .order("criado_em", { ascending: false });
-        if (data) setProjetos(data);
-      } else {
-        toast.error("Erro ao criar obra: " + error.message, { id: toastId });
-      }
-      setCarregando(false);
-    }
+    await run({
+      key: "projetos",
+      loading: "Criando obra...",
+      success: "Obra criada com sucesso!",
+      request: async () => {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error || !user) throw new MutationError("Não foi possível validar sua sessão. Entre novamente.");
+        return supabase.from("projetos").insert([{ titulo: novoProjeto, user_id: user.id }])
+          .select("id, titulo, user_id, criado_em").single<Projeto>();
+      },
+      onConfirmed: (projeto) => {
+        setProjetos(prev => [projeto, ...prev]);
+        setNovoProjeto("");
+      },
+    });
   };
 
   const iniciarEdicao = (projeto: Projeto) => {
@@ -76,46 +70,32 @@ export default function Projetos() {
   };
 
   const salvarEdicao = async (id: number) => {
-    if (!tituloEditado.trim()) {
-      toast.error("O nome da obra não pode ficar vazio.");
-      return;
-    }
-
-    setCarregando(true);
-    const toastId = toast.loading("Salvando alterações...");
-
-    const { error } = await supabase
-      .from("projetos")
-      .update({ titulo: tituloEditado })
-      .eq("id", id);
-
-    if (!error) {
-      setProjetos(projetos.map(p => p.id === id ? { ...p, titulo: tituloEditado } : p));
-      setProjetoEditando(null); 
-      toast.success("Nome atualizado!", { id: toastId });
-    } else {
-      toast.error("Erro ao editar obra: " + error.message, { id: toastId });
-    }
-    setCarregando(false);
+    if (!tituloEditado.trim()) return toast.error("O nome da obra não pode ficar vazio.");
+    await run({
+      key: "projetos",
+      loading: "Salvando alterações...",
+      success: "Nome atualizado!",
+      request: () => supabase.from("projetos").update({ titulo: tituloEditado }).eq("id", id)
+        .select("id, titulo, user_id, criado_em").single<Projeto>(),
+      onConfirmed: (projeto) => {
+        setProjetos(prev => prev.map(p => p.id === id ? projeto : p));
+        setProjetoEditando(null);
+      },
+    });
   };
 
   const confirmarExclusaoProjeto = async (id: number) => {
-    setCarregando(true);
-    const toastId = toast.loading("Excluindo obra...");
-
-    const { error } = await supabase
-      .from("projetos")
-      .delete()
-      .eq("id", id);
-
-    if (!error) {
-      setProjetos(projetos.filter(p => p.id !== id));
-      toast.success("Obra excluída com sucesso!", { id: toastId });
-    } else {
-      toast.error("Erro ao excluir obra: " + error.message, { id: toastId });
-    }
-    setProjetoConfirmarExclusao(null);
-    setCarregando(false);
+    await run({
+      key: "projetos",
+      loading: "Excluindo obra...",
+      success: "Obra excluída com sucesso!",
+      request: () => supabase.from("projetos").delete().eq("id", id)
+        .select("id").single<{ id: number }>(),
+      onConfirmed: (projeto) => {
+        setProjetos(prev => prev.filter(p => p.id !== projeto.id));
+        setProjetoConfirmarExclusao(null);
+      },
+    });
   };
 
   // Função auxiliar para formatar a data que vem do banco
@@ -263,14 +243,14 @@ export default function Projetos() {
                       {/* Botões visíveis no mobile e desktop */}
                       <div className="flex items-center gap-2 w-full md:w-auto">
                         <button 
-                          onClick={() => iniciarEdicao(projeto)}
+                          disabled={carregando} onClick={() => iniciarEdicao(projeto)}
                           className="p-2 text-zinc-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
                           title="Editar"
                         >
                           <Edit2 size={18} />
                         </button>
                         <button 
-                          onClick={() => setProjetoConfirmarExclusao(projeto.id)}
+                          disabled={carregando} onClick={() => setProjetoConfirmarExclusao(projeto.id)}
                           className="p-2 text-zinc-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
                           title="Excluir"
                         >

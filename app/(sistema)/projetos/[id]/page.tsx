@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
 import Link from "next/link";
+import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
 import toast from "react-hot-toast";
 import { 
   ArrowLeft, ShoppingCart, CheckSquare, MessageCircle, 
@@ -41,9 +42,14 @@ interface Transacao {
   funcionarios?: { nome: string }; // Join do banco
 }
 
-export default function DetalhesDoProjeto() {
-  const params = useParams();
-  const projetoId = params.id;
+export default function ProjetoPage() {
+  const { id } = useParams<{ id: string }>();
+  return <DetalhesDoProjeto key={id} projetoId={id} />;
+}
+
+function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
+  const { run, isPending } = useConfirmedMutation();
+  const [precosEditados, setPrecosEditados] = useState<Record<number, string>>({});
   const [tituloObra, setTituloObra] = useState("Carregando...");
   const [tarefas, setTarefas] = useState<Tarefa[]>([]);
   const [materiais, setMateriais] = useState<Material[]>([]);
@@ -64,7 +70,8 @@ export default function DetalhesDoProjeto() {
   const [transacoes, setTransacoes] = useState<Transacao[]>([]);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [novaTransacao, setNovaTransacao] = useState({ tipo: "RECEBIMENTO_CLIENTE", valor: "", descricao: "", funcionario_id: "" });
-  const [salvandoCaixa, setSalvandoCaixa] = useState(false);
+  const salvandoCaixa = isPending("nova-transacao");
+  const salvandoTarefa = isPending("nova-tarefa");
 
   // Cálculos Automáticos
   const custoMateriais = materiais.reduce((acumulador, item) => {
@@ -111,20 +118,29 @@ export default function DetalhesDoProjeto() {
   }, [projetoId]);
 
   const atualizarPreco = async (id: number, valorDigitado: string) => {
+    if (isPending(`material-${id}`)) return;
     const valorLimpo = valorDigitado.replace(/\./g, "").replace(",", ".");
     const precoNumerico = parseFloat(valorLimpo);
     const precoFinal = isNaN(precoNumerico) ? 0 : precoNumerico;
+    const atual = materiais.find(item => item.id === id);
 
-    setMateriais(prev => prev.map(item => item.id === id ? { ...item, preco_total: precoFinal } : item));
-    const { data, error } = await supabase.from("materiais_projeto").update({ preco_total: precoFinal }).eq("id", id).select();
-
-    if (error) {
-      toast.error("Erro do banco de dados: " + error.message);
-    } else if (data && data.length === 0) {
-      toast.error("O preço não foi salvo! Verifique as permissões.");
-    } else {
-      toast.success("Preço salvo com sucesso!", { duration: 1500 });
+    if (precoFinal !== (atual?.preco_total ?? 0)) {
+      await run({
+        key: `material-${id}`,
+        loading: "Salvando preço...",
+        success: "Preço salvo com sucesso!",
+        request: () => supabase.from("materiais_projeto")
+          .update({ preco_total: precoFinal }).eq("id", id).eq("projeto_id", projetoId)
+          .select("id, nome, quantidade, projeto_id, preco_total").single<Material>(),
+        onConfirmed: (material) => setMateriais(prev => prev.map(item => item.id === id ? material : item)),
+      });
     }
+    // Em caso de falha, o campo volta ao último preço confirmado, assim como o total.
+    setPrecosEditados(prev => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   };
 
   const iniciarEdicaoMaterial = (item: Material) => {
@@ -134,16 +150,18 @@ export default function DetalhesDoProjeto() {
   };
 
   const salvarEdicaoMaterial = async (id: number) => {
-    const toastId = toast.loading("Salvando alterações...");
-    setMateriais(prev => prev.map(item => item.id === id ? { ...item, nome: nomeEditado, quantidade: qtdEditada } : item));
-    const { error } = await supabase.from("materiais_projeto").update({ nome: nomeEditado, quantidade: qtdEditada }).eq("id", id);
-    if (error) {
-      toast.error("Erro ao atualizar: " + error.message, { id: toastId });
-      carregarDadosDaObra();
-    } else {
-      toast.success("Material atualizado!", { id: toastId });
-    }
-    setMaterialEditando(null);
+    await run({
+      key: `material-${id}`,
+      loading: "Salvando alterações...",
+      success: "Material atualizado!",
+      request: () => supabase.from("materiais_projeto")
+        .update({ nome: nomeEditado, quantidade: qtdEditada }).eq("id", id).eq("projeto_id", projetoId)
+        .select("id, nome, quantidade, projeto_id, preco_total").single<Material>(),
+      onConfirmed: (material) => {
+        setMateriais(prev => prev.map(item => item.id === id ? material : item));
+        setMaterialEditando(prev => prev === id ? null : prev);
+      },
+    });
   };
 
   const confirmarExclusaoMaterial = (id: number) => {
@@ -170,34 +188,42 @@ export default function DetalhesDoProjeto() {
   };
 
   const executarExclusaoMaterial = async (id: number) => {
-    const toastId = toast.loading("Removendo material...");
-    setMateriais(prev => prev.filter(item => item.id !== id));
-    const { error } = await supabase.from("materiais_projeto").delete().eq("id", id);
-    if (error) {
-      toast.error("Erro ao excluir: " + error.message, { id: toastId });
-      carregarDadosDaObra();
-    } else {
-      toast.success("Material excluído!", { id: toastId });
-    }
+    await run({
+      key: `material-${id}`,
+      loading: "Removendo material...",
+      success: "Material excluído!",
+      request: () => supabase.from("materiais_projeto").delete()
+        .eq("id", id).eq("projeto_id", projetoId).select("id").single<{ id: number }>(),
+      onConfirmed: (material) => setMateriais(prev => prev.filter(item => item.id !== material.id)),
+    });
   };
 
   const criarTarefa = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!novaTarefa) return;
-    const { error } = await supabase.from("tarefas").insert([{ nome: novaTarefa, projeto_id: projetoId }]);
-    if (!error) {
-      setNovaTarefa("");
-      toast.success("Tarefa adicionada!", { duration: 1500 });
-      carregarDadosDaObra();
-    } else {
-      toast.error("Erro ao criar tarefa: " + error.message);
-    }
+    if (!novaTarefa.trim()) return;
+    await run({
+      key: "nova-tarefa",
+      loading: "Adicionando tarefa...",
+      success: "Tarefa adicionada!",
+      request: () => supabase.from("tarefas").insert([{ nome: novaTarefa, projeto_id: projetoId }])
+        .select("id, nome, concluida, projeto_id").single<Tarefa>(),
+      onConfirmed: (tarefa) => {
+        setTarefas(prev => [...prev, tarefa]);
+        setNovaTarefa("");
+      },
+    });
   };
 
   const alternarConclusao = async (id: number, statusAtual: boolean) => {
-    setTarefas(prev => prev.map(t => t.id === id ? { ...t, concluida: !statusAtual } : t));
-    const { error } = await supabase.from("tarefas").update({ concluida: !statusAtual }).eq("id", id);
-    if (error) toast.error("Erro ao atualizar tarefa.");
+    await run({
+      key: `tarefa-${id}`,
+      loading: "Atualizando tarefa...",
+      success: "Tarefa atualizada!",
+      request: () => supabase.from("tarefas").update({ concluida: !statusAtual })
+        .eq("id", id).eq("projeto_id", projetoId)
+        .select("id, nome, concluida, projeto_id").single<Tarefa>(),
+      onConfirmed: (tarefa) => setTarefas(prev => prev.map(item => item.id === id ? tarefa : item)),
+    });
   };
 
   const solicitarOrcamentoWhatsApp = () => {
@@ -223,8 +249,6 @@ export default function DetalhesDoProjeto() {
     e.preventDefault();
     if (!novaTransacao.valor || !novaTransacao.descricao) return toast.error("Preencha o valor e a descrição.");
     
-    setSalvandoCaixa(true);
-    const toastId = toast.loading("Registrando no caixa...");
     const valorNum = parseFloat(novaTransacao.valor.replace(/\./g, "").replace(",", "."));
 
   const payload: {
@@ -243,24 +267,30 @@ export default function DetalhesDoProjeto() {
       payload.funcionario_id = parseInt(novaTransacao.funcionario_id);
     }
 
-    const { error } = await supabase.from("financeiro_obra").insert([payload]);
-
-    if (!error) {
-      toast.success("Lançamento registrado!", { id: toastId });
-      setNovaTransacao({ tipo: "RECEBIMENTO_CLIENTE", valor: "", descricao: "", funcionario_id: "" });
-      carregarDadosDaObra(); 
-    } else {
-      toast.error("Erro: " + error.message, { id: toastId });
-    }
-    setSalvandoCaixa(false);
+    await run({
+      key: "nova-transacao",
+      loading: "Registrando no caixa...",
+      success: "Lançamento registrado!",
+      request: () => supabase.from("financeiro_obra").insert([payload])
+        .select("id, tipo, valor, data, descricao, funcionario_id").single<Transacao>(),
+      onConfirmed: (transacao) => {
+        const funcionario = funcionarios.find(f => f.id === transacao.funcionario_id);
+        setTransacoes(prev => [{ ...transacao, funcionarios: funcionario ? { nome: funcionario.nome } : undefined }, ...prev]);
+        setNovaTransacao({ tipo: "RECEBIMENTO_CLIENTE", valor: "", descricao: "", funcionario_id: "" });
+      },
+    });
   };
 
   const excluirTransacao = async (id: number) => {
-    setTransacoes(prev => prev.filter(t => t.id !== id));
-    await supabase.from("financeiro_obra").delete().eq("id", id);
-    toast.success("Lançamento removido.");
+    await run({
+      key: `transacao-${id}`,
+      loading: "Removendo lançamento...",
+      success: "Lançamento removido.",
+      request: () => supabase.from("financeiro_obra").delete()
+        .eq("id", id).eq("projeto_id", projetoId).select("id").single<{ id: number }>(),
+      onConfirmed: (transacao) => setTransacoes(prev => prev.filter(t => t.id !== transacao.id)),
+    });
   };
-
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       
@@ -350,11 +380,11 @@ export default function DetalhesDoProjeto() {
                       <li key={item.id} className="p-4 flex flex-col gap-3 hover:bg-zinc-50 transition-colors">
                         {materialEditando === item.id ? (
                           <div className="flex flex-col sm:flex-row gap-3 bg-orange-50 p-3 rounded-xl border border-orange-300 animate-in fade-in">
-                            <input className="flex-1 p-3 border border-orange-300 rounded-lg text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 bg-white" value={nomeEditado} onChange={(e) => setNomeEditado(e.target.value)} placeholder="Nome" />
-                            <input className="w-full sm:w-32 p-3 border border-orange-300 rounded-lg text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 bg-white" value={qtdEditada} onChange={(e) => setQtdEditada(e.target.value)} placeholder="Qtd" />
+                            <input className="flex-1 p-3 border border-orange-300 rounded-lg text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 bg-white" disabled={isPending(`material-${item.id}`)} value={nomeEditado} onChange={(e) => setNomeEditado(e.target.value)} placeholder="Nome" />
+                            <input className="w-full sm:w-32 p-3 border border-orange-300 rounded-lg text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 bg-white" disabled={isPending(`material-${item.id}`)} value={qtdEditada} onChange={(e) => setQtdEditada(e.target.value)} placeholder="Qtd" />
                             <div className="flex gap-2 w-full sm:w-auto">
-                              <button onClick={() => setMaterialEditando(null)} className="flex-1 bg-zinc-200 text-zinc-800 p-3 rounded-lg font-bold hover:bg-zinc-300 flex items-center justify-center"><X size={18}/></button>
-                              <button onClick={() => salvarEdicaoMaterial(item.id)} className="flex-1 bg-emerald-600 text-white p-3 rounded-lg font-bold hover:bg-emerald-700 flex items-center justify-center"><Save size={18}/></button>
+                              <button disabled={isPending(`material-${item.id}`)} onClick={() => setMaterialEditando(null)} className="flex-1 bg-zinc-200 text-zinc-800 p-3 rounded-lg font-bold hover:bg-zinc-300 flex items-center justify-center"><X size={18}/></button>
+                              <button disabled={isPending(`material-${item.id}`)} onClick={() => salvarEdicaoMaterial(item.id)} className="flex-1 bg-emerald-600 text-white p-3 rounded-lg font-bold hover:bg-emerald-700 flex items-center justify-center"><Save size={18}/></button>
                             </div>
                           </div>
                         ) : (
@@ -365,15 +395,15 @@ export default function DetalhesDoProjeto() {
                                 <span className="inline-block bg-orange-100 text-orange-800 py-1 px-3 rounded-full font-bold text-xs mt-1">{item.quantidade}</span>
                               </div>
                               <div className="flex gap-1">
-                                <button onClick={() => iniciarEdicaoMaterial(item)} className="p-2 text-zinc-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"><Edit2 size={18} /></button>
-                                <button onClick={() => confirmarExclusaoMaterial(item.id)} className="p-2 text-zinc-500 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"><Trash2 size={18} /></button>
+                                <button disabled={isPending(`material-${item.id}`)} onClick={() => iniciarEdicaoMaterial(item)} className="p-2 text-zinc-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"><Edit2 size={18} /></button>
+                                <button disabled={isPending(`material-${item.id}`)} onClick={() => confirmarExclusaoMaterial(item.id)} className="p-2 text-zinc-500 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"><Trash2 size={18} /></button>
                               </div>
                             </div>
                             <div className="flex justify-between items-center bg-zinc-50 p-3 rounded-xl border border-zinc-200 mt-1">
                               <label className="text-xs font-bold text-zinc-600 uppercase tracking-wide">Custo Registrado</label>
                               <div className="flex items-center text-emerald-800 font-bold bg-white px-3 py-1.5 rounded-lg border border-zinc-300 shadow-sm focus-within:ring-2 focus-within:ring-emerald-600 transition-all">
                                 <span className="text-zinc-500 mr-1 text-sm">R$</span>
-                                <input type="text" inputMode="decimal" defaultValue={item.preco_total ? item.preco_total.toString().replace(".", ",") : ""} placeholder="0,00" onBlur={(e) => atualizarPreco(item.id, e.target.value)} className="w-20 text-right outline-none bg-transparent placeholder-zinc-400" />
+                                <input type="text" inputMode="decimal" disabled={isPending(`material-${item.id}`)} value={precosEditados[item.id] ?? (item.preco_total ? item.preco_total.toString().replace(".", ",") : "")} onChange={(e) => setPrecosEditados(prev => ({ ...prev, [item.id]: e.target.value }))} placeholder="0,00" onBlur={(e) => atualizarPreco(item.id, e.target.value)} className="w-20 text-right outline-none bg-transparent placeholder-zinc-400" />
                               </div>
                             </div>
                           </>
@@ -409,13 +439,13 @@ export default function DetalhesDoProjeto() {
               
               <div className="p-4 border-b border-zinc-200 bg-white">
                 <form onSubmit={registrarTransacao} className="flex flex-col gap-3">
-                  <select className="p-3 border border-zinc-300 rounded-xl text-sm font-bold outline-none bg-zinc-50 text-zinc-900 focus:ring-2 focus:ring-emerald-600" value={novaTransacao.tipo} onChange={(e) => setNovaTransacao({ ...novaTransacao, tipo: e.target.value as "RECEBIMENTO_CLIENTE" | "PAGAMENTO_FUNCIONARIO", funcionario_id: "" })}>
+                  <select className="p-3 border border-zinc-300 rounded-xl text-sm font-bold outline-none bg-zinc-50 text-zinc-900 focus:ring-2 focus:ring-emerald-600" disabled={salvandoCaixa} value={novaTransacao.tipo} onChange={(e) => setNovaTransacao({ ...novaTransacao, tipo: e.target.value as "RECEBIMENTO_CLIENTE" | "PAGAMENTO_FUNCIONARIO", funcionario_id: "" })}>
                     <option value="RECEBIMENTO_CLIENTE">Entrada: Dinheiro do Cliente</option>
                     <option value="PAGAMENTO_FUNCIONARIO">Saída: Pagamento da Equipe</option>
                   </select>
 
                   {novaTransacao.tipo === "PAGAMENTO_FUNCIONARIO" && (
-                    <select className="p-3 border border-zinc-300 rounded-xl text-sm outline-none bg-white text-zinc-900 focus:ring-2 focus:ring-emerald-600" value={novaTransacao.funcionario_id} onChange={(e) => handleSelecionarFuncionario(e.target.value)} required>
+                    <select className="p-3 border border-zinc-300 rounded-xl text-sm outline-none bg-white text-zinc-900 focus:ring-2 focus:ring-emerald-600" disabled={salvandoCaixa} value={novaTransacao.funcionario_id} onChange={(e) => handleSelecionarFuncionario(e.target.value)} required>
                       <option value="" disabled hidden>Selecione o profissional...</option>
                       {funcionarios.map(f => <option key={f.id} value={f.id}>{f.nome} (Diária: R$ {f.valor_diaria})</option>)}
                     </select>
@@ -426,7 +456,7 @@ export default function DetalhesDoProjeto() {
                       type="text" 
                       className="sm:w-1/2 p-3 border border-zinc-300 rounded-xl text-sm text-zinc-900 placeholder-zinc-500 outline-none focus:ring-2 focus:ring-emerald-600 transition-all" 
                       placeholder={novaTransacao.tipo === "RECEBIMENTO_CLIENTE" ? "Ex: Sinal / 1ª Parcela" : "Ex: Adiantamento / 3 dias"} 
-                      value={novaTransacao.descricao} 
+                      disabled={salvandoCaixa} value={novaTransacao.descricao}
                       onChange={(e) => setNovaTransacao({ ...novaTransacao, descricao: e.target.value })} 
                       required 
                     />
@@ -437,7 +467,7 @@ export default function DetalhesDoProjeto() {
                         type="text" 
                         inputMode="decimal" 
                         className="w-full py-3 pl-2 outline-none text-right text-sm font-bold text-zinc-900 placeholder-zinc-400 bg-transparent" 
-                        value={novaTransacao.valor} 
+                        disabled={salvandoCaixa} value={novaTransacao.valor}
                         onChange={(e) => setNovaTransacao({ ...novaTransacao, valor: e.target.value })} 
                         placeholder="0,00" 
                         required 
@@ -467,7 +497,7 @@ export default function DetalhesDoProjeto() {
                           <span className={`font-black text-sm ${t.tipo === "RECEBIMENTO_CLIENTE" ? "text-emerald-700" : "text-red-700"}`}>
                             {t.tipo === "RECEBIMENTO_CLIENTE" ? "+" : "-"} R$ {t.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
                           </span>
-                          <button onClick={() => excluirTransacao(t.id)} className="text-zinc-500 hover:text-red-600 p-1"><Trash2 size={16}/></button>
+                          <button disabled={isPending(`transacao-${t.id}`)} onClick={() => excluirTransacao(t.id)} className="text-zinc-500 hover:text-red-600 p-1"><Trash2 size={16}/></button>
                         </div>
                       </li>
                     ))}
@@ -487,8 +517,8 @@ export default function DetalhesDoProjeto() {
 
               <div className="p-4 border-b border-zinc-200 bg-white">
                 <form onSubmit={criarTarefa} className="flex gap-2">
-                  <input type="text" className="flex-1 p-3 border border-zinc-300 rounded-xl text-zinc-900 outline-none focus:ring-2 focus:ring-blue-600 transition-all bg-zinc-50 focus:bg-white placeholder-zinc-500" placeholder="O que precisa ser feito?" value={novaTarefa} onChange={(e) => setNovaTarefa(e.target.value)} />
-                  <button type="submit" disabled={!novaTarefa.trim()} className="bg-zinc-900 text-white px-4 rounded-xl font-bold hover:bg-zinc-800 transition disabled:opacity-50">
+                  <input type="text" className="flex-1 p-3 border border-zinc-300 rounded-xl text-zinc-900 outline-none focus:ring-2 focus:ring-blue-600 transition-all bg-zinc-50 focus:bg-white placeholder-zinc-500" placeholder="O que precisa ser feito?" disabled={salvandoTarefa} value={novaTarefa} onChange={(e) => setNovaTarefa(e.target.value)} />
+                  <button type="submit" disabled={salvandoTarefa || !novaTarefa.trim()} className="bg-zinc-900 text-white px-4 rounded-xl font-bold hover:bg-zinc-800 transition disabled:opacity-50">
                     <Plus size={20} />
                   </button>
                 </form>
@@ -503,14 +533,14 @@ export default function DetalhesDoProjeto() {
                 ) : (
                   <div className="space-y-2">
                     {tarefas.map((tarefa) => (
-                      <div key={tarefa.id} onClick={() => alternarConclusao(tarefa.id, tarefa.concluida)} className={`p-4 rounded-xl border cursor-pointer flex items-center gap-3 transition-all ${tarefa.concluida ? "bg-emerald-50 border-emerald-200" : "bg-white border-zinc-200 hover:border-blue-400 shadow-sm hover:shadow"}`}>
-                        <div className={`shrink-0 w-6 h-6 rounded flex items-center justify-center border transition-colors ${tarefa.concluida ? "bg-emerald-600 border-emerald-600 text-white" : "border-zinc-300 bg-zinc-50"}`}>
+                      <button type="button" disabled={isPending(`tarefa-${tarefa.id}`)} aria-pressed={tarefa.concluida} key={tarefa.id} onClick={() => alternarConclusao(tarefa.id, tarefa.concluida)} className={`w-full text-left disabled:opacity-50 p-4 rounded-xl border cursor-pointer flex items-center gap-3 transition-all ${tarefa.concluida ? "bg-emerald-50 border-emerald-200" : "bg-white border-zinc-200 hover:border-blue-400 shadow-sm hover:shadow"}`}>
+                        <span className={`shrink-0 w-6 h-6 rounded flex items-center justify-center border transition-colors ${tarefa.concluida ? "bg-emerald-600 border-emerald-600 text-white" : "border-zinc-300 bg-zinc-50"}`}>
                           {tarefa.concluida && <Check size={14} strokeWidth={3} />}
-                        </div>
+                        </span>
                         <span className={`text-sm md:text-base font-semibold transition-all select-none ${tarefa.concluida ? "line-through text-emerald-700/80" : "text-zinc-800"}`}>
                           {tarefa.nome}
                         </span>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}

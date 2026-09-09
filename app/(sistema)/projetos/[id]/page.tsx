@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
 import Link from "next/link";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
+import { parseMoney } from "@/lib/money";
 import toast from "react-hot-toast";
 import { 
   ArrowLeft, ShoppingCart, CheckSquare, MessageCircle, 
@@ -117,11 +118,23 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projetoId]);
 
+  const limparPrecoEditado = (id: number) => {
+    setPrecosEditados(prev => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
   const atualizarPreco = async (id: number, valorDigitado: string) => {
     if (isPending(`material-${id}`)) return;
-    const valorLimpo = valorDigitado.replace(/\./g, "").replace(",", ".");
-    const precoNumerico = parseFloat(valorLimpo);
-    const precoFinal = isNaN(precoNumerico) ? 0 : precoNumerico;
+    const preco = parseMoney(valorDigitado, { allowEmpty: true });
+    if (!preco.ok) {
+      toast.error(`Preço do material: ${preco.error}`);
+      limparPrecoEditado(id);
+      return;
+    }
+    const precoFinal = preco.value;
     const atual = materiais.find(item => item.id === id);
 
     if (precoFinal !== (atual?.preco_total ?? 0)) {
@@ -136,11 +149,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
       });
     }
     // Em caso de falha, o campo volta ao último preço confirmado, assim como o total.
-    setPrecosEditados(prev => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
+    limparPrecoEditado(id);
   };
 
   const iniciarEdicaoMaterial = (item: Material) => {
@@ -239,7 +248,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   const handleSelecionarFuncionario = (idStr: string) => {
     const func = funcionarios.find(f => f.id.toString() === idStr);
     if (func) {
-      setNovaTransacao({ ...novaTransacao, funcionario_id: idStr, valor: func.valor_diaria.toString().replace(".", ",") });
+      setNovaTransacao({ ...novaTransacao, funcionario_id: idStr, valor: (func.valor_diaria ?? 0).toString().replace(".", ",") });
     } else {
       setNovaTransacao({ ...novaTransacao, funcionario_id: idStr });
     }
@@ -249,7 +258,8 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
     e.preventDefault();
     if (!novaTransacao.valor || !novaTransacao.descricao) return toast.error("Preencha o valor e a descrição.");
     
-    const valorNum = parseFloat(novaTransacao.valor.replace(/\./g, "").replace(",", "."));
+    const valor = parseMoney(novaTransacao.valor, { allowZero: false });
+    if (!valor.ok) return toast.error(`Lançamento: ${valor.error}`);
 
   const payload: {
       projeto_id: string;
@@ -260,7 +270,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
     } = { 
       projeto_id: projetoId as string, 
       tipo: novaTransacao.tipo, 
-      valor: isNaN(valorNum) ? 0 : valorNum, 
+      valor: valor.value,
       descricao: novaTransacao.descricao 
     };
     if (novaTransacao.tipo === "PAGAMENTO_FUNCIONARIO" && novaTransacao.funcionario_id) {

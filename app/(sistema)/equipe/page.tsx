@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
 import { MutationError } from "@/lib/confirmed-mutation";
+import { parseMoney } from "@/lib/money";
 import toast from "react-hot-toast";
 import { Users, HardHat, DollarSign, Plus, Trash2, Edit2, X, Save, ArrowLeft } from "lucide-react";
 
@@ -49,15 +50,11 @@ export default function EquipePage() {
     carregarEquipe();
   }, []);
 
-  const formatarMoedaParaBanco = (valor: string) => {
-    const limpo = valor.replace(/\./g, "").replace(",", ".");
-    const num = parseFloat(limpo);
-    return isNaN(num) ? 0 : num;
-  };
-
   const criarFuncionario = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!novoNome.trim()) return toast.error("O nome é obrigatório.");
+    const diaria = parseMoney(novaDiaria, { allowEmpty: true });
+    if (!diaria.ok) return toast.error(`Diária: ${diaria.error}`);
     await run({
       key: "equipe",
       loading: "Cadastrando profissional...",
@@ -67,7 +64,7 @@ export default function EquipePage() {
         if (error || !user) throw new MutationError("Não foi possível validar sua sessão. Entre novamente.");
         return supabase.from("funcionarios").insert([{
           nome: novoNome, cargo: novoCargo || "Profissional da Obra",
-          valor_diaria: formatarMoedaParaBanco(novaDiaria), user_id: user.id,
+          valor_diaria: diaria.value, user_id: user.id,
         }]).select("id, nome, cargo, valor_diaria").single<Funcionario>();
       },
       onConfirmed: (funcionario) => {
@@ -88,12 +85,14 @@ export default function EquipePage() {
 
   const salvarEdicao = async (id: number) => {
     if (!editNome.trim()) return toast.error("O nome não pode ficar vazio.");
+    const diaria = parseMoney(editDiaria, { allowEmpty: true });
+    if (!diaria.ok) return toast.error(`Diária: ${diaria.error}`);
     await run({
       key: "equipe",
       loading: "Salvando alterações...",
       success: "Profissional atualizado!",
       request: () => supabase.from("funcionarios").update({
-        nome: editNome, cargo: editCargo, valor_diaria: formatarMoedaParaBanco(editDiaria),
+        nome: editNome, cargo: editCargo, valor_diaria: diaria.value,
       }).eq("id", id).select("id, nome, cargo, valor_diaria").single<Funcionario>(),
       onConfirmed: (funcionario) => {
         setFuncionarios(prev => prev.map(item => item.id === id ? funcionario : item));

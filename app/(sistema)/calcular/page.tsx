@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import toast from "react-hot-toast";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
+import { calculateMoneyTotal, parseMoney } from "@/lib/money";
 import { Calculator, Plus, X, Building2, Save, Ruler, CheckCircle2, DollarSign } from "lucide-react";
 
 const OPCOES_MATERIAIS: Record<string, { nome: string; tipos: string[] }> = {
@@ -79,6 +80,7 @@ export default function Calculadora() {
   }, []);
 
   const adicionarMedida = () => {
+    setResultado(null);
     setMedidas([...medidas, { id: Date.now(), altura: "", largura: "" }]);
   };
 
@@ -87,18 +89,22 @@ export default function Calculadora() {
   };
 
   const removerMedida = (id: number) => {
+    setResultado(null);
     setMedidas(medidas.filter(m => m.id !== id));
   };
 
   const realizarCalculo = (e: React.FormEvent) => {
     e.preventDefault();
+    setResultado(null);
+    const preco = parseMoney(precoUnitario, { allowEmpty: true });
+    if (!preco.ok) return toast.error(`Preço unitário: ${preco.error}`);
     let areaTotal = 0;
 
     for (const med of medidas) {
       const alt = parseFloat(med.altura.replace(",", "."));
       const larg = parseFloat(med.largura.replace(",", "."));
 
-      if (isNaN(alt) || isNaN(larg)) {
+      if (!Number.isFinite(alt) || !Number.isFinite(larg) || alt <= 0 || larg <= 0) {
         toast.error("Preencha corretamente todas as medidas (Altura e Largura).");
         return;
       }
@@ -145,13 +151,8 @@ export default function Calculadora() {
         break;
     }
 
-    // LÓGICA: Calcular o valor total em Reais se o usuário preencheu o preço
-    const precoNum = parseFloat(precoUnitario.replace(/\./g, "").replace(",", "."));
-    let custoTotal = 0;
-    if (!isNaN(precoNum) && precoNum > 0) {
-      // Se for piso com peças, multiplica pelo metro quadrado. Para os outros, também pelo metro.
-      custoTotal = qtdComQuebra * precoNum; 
-    }
+    const custo = calculateMoneyTotal(preco.cents, qtdComQuebra);
+    if (!custo.ok) return toast.error(custo.error);
 
     setResultado({
       quantidade: qtdComQuebra.toFixed(2).replace(".", ","),
@@ -159,7 +160,7 @@ export default function Calculadora() {
       area: areaTotal.toFixed(2).replace(".", ","),
       materialNome: material || OPCOES_MATERIAIS[superficie]?.nome || "Material",
       totalPecas: pecasEstimadas > 0 ? pecasEstimadas : undefined,
-      precoTotalEstimado: custoTotal > 0 ? custoTotal : undefined // Salva o total calculado
+      precoTotalEstimado: custo.value
     });
     
     toast.success("Cálculo realizado com sucesso!");
@@ -209,7 +210,7 @@ export default function Calculadora() {
         
         {/* COLUNA ESQUERDA: FORMULÁRIO DE CÁLCULO */}
         <div className="lg:col-span-7 bg-white p-4 md:p-8 rounded-2xl border border-zinc-100 shadow-sm">
-          <form onSubmit={realizarCalculo} className="flex flex-col gap-6">
+          <form onSubmit={realizarCalculo} onChange={() => setResultado(null)} className="flex flex-col gap-6">
             <fieldset disabled={salvando} className="contents">
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

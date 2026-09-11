@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast"; // Import do Toaster global
 import { NetworkMonitor } from "@/app/components/NetworkMonitor"; // Import do nosso monitor
+import { AuthActionsProvider } from "@/app/components/AuthActionsProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -41,7 +42,7 @@ export default function RootLayout({
         {/* O Toaster global garante que os alertas funcionem em qualquer tela */}
         <Toaster position="top-center" />
         
-        {children}
+        <AuthActionsProvider>{children}</AuthActionsProvider>
       </body>
     </html>
   );

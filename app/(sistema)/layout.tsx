@@ -2,9 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { supabase } from "@/lib/supabase";
-import toast from "react-hot-toast";
-import { useRouter } from "next/navigation";
+import { useAuthActions } from "@/app/components/AuthActionsProvider";
 import { HardHat, LayoutDashboard, Calculator, FolderKanban, Settings, LogOut, Users } from "lucide-react";
 
 export default function SistemaLayout({
@@ -14,14 +12,7 @@ export default function SistemaLayout({
 }) {
   const pathname = usePathname();
 
-  const router = useRouter();
-
-  const handleSair = async () => {
-    const toastId = toast.loading("Saindo do sistema...");
-    await supabase.auth.signOut();
-    toast.success("Sessão encerrada.", { id: toastId });
-    router.push("/login");
-  };
+  const { logout, pending } = useAuthActions();
 
   const isActive = (path: string) => pathname?.startsWith(path);
 
@@ -70,10 +61,11 @@ export default function SistemaLayout({
             <Settings size={20} /> Perfil
           </Link>
           <button 
-            onClick={handleSair} 
+            onClick={logout}
+            disabled={pending !== null}
             className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-red-500/10 hover:text-red-400 transition-colors text-left"
           >
-            <LogOut size={20} /> Sair
+            <LogOut size={20} /> {pending === "logout" ? "Saindo..." : "Sair"}
           </button>
         </div>
       </aside>

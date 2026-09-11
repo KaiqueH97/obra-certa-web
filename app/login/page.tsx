@@ -1,44 +1,33 @@
 "use client";
 
-import { useState } from "react";
-import { supabase } from "../../lib/supabase";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useAuthActions } from "@/app/components/AuthActionsProvider";
 import Link from "next/link";
 import toast from "react-hot-toast";
 
 export default function Home() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
-  const [carregando, setCarregando] = useState(false);
-  const router = useRouter();
+  const { login, pending } = useAuthActions();
+  const carregando = pending !== null;
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("saida") === "parcial") {
+      toast.error("Sessão encerrada neste navegador. Não foi possível confirmar a saída nos outros dispositivos.", {
+        id: "logout-parcial", duration: 10000,
+      });
+    }
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !senha) {
+    if (!email.trim() || !senha) {
       toast.error("Por favor, preencha e-mail e senha.");
       return;
     }
 
-    setCarregando(true);
-    const toastId = toast.loading("Conectando...");
-    
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password: senha,
-    });
-
-    if (error) {
-      toast.error("Erro ao entrar: " + error.message, { id: toastId });
-      setCarregando(false); 
-    } else {
-      toast.success("Login realizado com sucesso!", { id: toastId, duration: 1500 });
-      
-      setTimeout(() => {
-        toast.dismiss(); 
-        router.push("/home");
-      }, 1000);
-    }
+    await login({ email: email.trim(), password: senha });
   };
 
   return (

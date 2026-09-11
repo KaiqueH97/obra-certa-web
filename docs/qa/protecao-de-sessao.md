@@ -1,5 +1,10 @@
 # Proteção de rotas e renovação de sessão
 
+## Validação manual confirmada
+
+Em 11/09/2026, o usuário informou que realizou os testes manuais desta etapa e
+que todos funcionaram corretamente. A etapa de proteção no servidor foi validada.
+
 ## Problemas corrigidos
 
 O antigo `middleware.ts` recebia cookies renovados do Supabase, mas criava uma
@@ -56,8 +61,9 @@ banco permanece responsabilidade das políticas de RLS já aplicadas.
 Em 11/09/2026, a checagem HTTP sem cookies no servidor de produção local confirmou
 redirecionamento 307 para `/login` em `/home`, `/equipe` e `/projetos/123.png`.
 Login, recuperação, redefinição de senha, página offline e `sw.js` responderam 200.
-Foram usadas requisições HEAD para conferir status e cabeçalhos; a renovação com
-uma sessão real ainda precisa da conferência manual abaixo.
+Foram usadas requisições HEAD para conferir status e cabeçalhos. A conferência
+com sessão real no navegador foi posteriormente confirmada pelo usuário, conforme
+registrado na seção inicial.
 
 ## Conferência manual
 
@@ -71,5 +77,6 @@ uma sessão real ainda precisa da conferência manual abaixo.
 4. Confira `/recuperar`, `/redefinir-senha`, a página offline e a instalação do PWA.
 
 Nenhum SQL ou alteração de chave é necessário. Esta etapa trata das requisições
-que chegam ao servidor; as ações de login/logout no cliente e a reação de abas já
-abertas à expiração de sessão continuam sendo etapas separadas.
+que chegam ao servidor. As ações de login/logout no cliente estão documentadas na
+[etapa seguinte](./login-logout.md). A reação de outras abas já abertas à expiração
+de sessão permanece uma etapa separada.

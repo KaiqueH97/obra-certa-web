@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useAuthActions } from "@/app/components/AuthActionsProvider";
 import toast from "react-hot-toast";
 import { User, Phone, Mail, LogOut, Shield, Save, X, HardHat, Key } from "lucide-react";
 
 export default function Perfil() {
   const router = useRouter();
+  const { logout, pending } = useAuthActions();
   const [nome, setNome] = useState<string>("Carregando...");
   const [email, setEmail] = useState<string>("...");  
   const [telefone, setTelefone] = useState<string>(""); 
@@ -63,13 +65,6 @@ export default function Perfil() {
     setSalvando(false);
   };
 
-  const handleSair = async () => {
-    const toastId = toast.loading("Saindo do sistema...");
-    await supabase.auth.signOut();
-    toast.success("Sessão encerrada.", { id: toastId });
-    router.push("/login");
-  };
-
   // Função auxiliar para pegar as iniciais do nome para o Avatar
   const getIniciais = (nomeCompleto: string) => {
     if (nomeCompleto === "Carregando..." || nomeCompleto === "Usuário") return "OC";
@@ -109,10 +104,11 @@ export default function Perfil() {
             <div className="w-full h-px bg-zinc-100 my-6"></div>
 
             <button
-              onClick={handleSair}
+              onClick={logout}
+              disabled={pending !== null || salvando}
               className="w-full flex items-center justify-center gap-2 bg-red-50 text-red-600 hover:bg-red-100 font-bold p-3 rounded-xl transition-colors"
             >
-              <LogOut size={20} /> Sair do Sistema
+              <LogOut size={20} /> {pending === "logout" ? "Saindo..." : "Sair do Sistema"}
             </button>
           </div>
         </div>

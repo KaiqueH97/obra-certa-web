@@ -10,7 +10,8 @@
     "test:pwa": "node --test tests/pwa-cache.test.mjs",
     "test:rls": "python3 tests/database/test_rls.py",
     "test:mutations": "node --test tests/confirmed-mutation.test.mjs",
-    "test:money": "node --test tests/money.test.mjs"
+    "test:money": "node --test tests/money.test.mjs",
+    "test:auth": "node --test tests/auth-proxy.test.mjs"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",

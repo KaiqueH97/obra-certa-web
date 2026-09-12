@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import { useDataLoad } from "@/app/hooks/useDataLoad";
+import { LoadFeedback } from "@/app/components/LoadFeedback";
+import { loadAllRows } from "@/lib/load-data";
 import toast from "react-hot-toast";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
 import { calculateMoneyTotal, parseMoney } from "@/lib/money";
@@ -71,13 +74,11 @@ export default function Calculadora() {
   const [projetos, setProjetos] = useState<{ id: number; titulo: string }[]>([]);
   const [projetoSelecionado, setProjetoSelecionado] = useState("");
 
-  useEffect(() => {
-    const buscarProjetos = async () => {
-      const { data } = await supabase.from("projetos").select("id, titulo");
-      if (data) setProjetos(data);
-    };
-    buscarProjetos();
-  }, []);
+  const buscarProjetos = useCallback((signal: AbortSignal) => loadAllRows<{ id: number; titulo: string }>(
+    (from, to) => supabase.from("projetos").select("id, titulo", { count: "exact" })
+      .order("id").range(from, to).abortSignal(signal), signal,
+  ), []);
+  const { ready, error, retry } = useDataLoad(buscarProjetos, setProjetos);
 
   const adicionarMedida = () => {
     setResultado(null);
@@ -167,7 +168,7 @@ export default function Calculadora() {
   };
 
   const salvarNoProjeto = async () => {
-    if (!projetoSelecionado || !resultado) return;
+    if (!ready || !projetoSelecionado || !resultado) return;
     const infoPecas = resultado.totalPecas ? ` (~${resultado.totalPecas} peças)` : "";
     const quantidadeSalva = `${resultado.quantidade} ${resultado.unidade}${infoPecas}`;
 
@@ -431,13 +432,14 @@ export default function Calculadora() {
                     <Building2 size={16} className="text-orange-600"/> Vincular a uma Obra Ativa
                   </label>
                   
+                  {!ready && <LoadFeedback error={error} retry={retry} />}
                   <select
                     className="w-full p-4 md:p-3 mb-4 rounded-xl border border-zinc-300 bg-zinc-50 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-orange-600 font-medium transition-all"
-                    disabled={salvando} value={projetoSelecionado}
+                    disabled={!ready || salvando} value={projetoSelecionado}
                     onChange={(e) => setProjetoSelecionado(e.target.value)}
                   >
                     <option value="" disabled hidden>Selecione um projeto...</option>
-                    {projetos.length === 0 ? (
+                    {!ready ? null : projetos.length === 0 ? (
                       <option disabled>Nenhum projeto encontrado.</option>
                     ) : (
                       projetos.map((proj) => (
@@ -450,7 +452,7 @@ export default function Calculadora() {
 
                   <button
                     onClick={salvarNoProjeto}
-                    disabled={!projetoSelecionado || salvando}
+                    disabled={!ready || !projetoSelecionado || salvando}
                     className="w-full flex items-center justify-center gap-2 bg-orange-600 text-white p-4 md:p-3 rounded-xl md:text-lg font-bold hover:bg-orange-700 disabled:opacity-50 disabled:bg-zinc-300 disabled:text-zinc-500 transition-colors shadow-sm"
                   >
                     <Save size={20} />

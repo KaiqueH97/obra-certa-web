@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import { useDataLoad } from "@/app/hooks/useDataLoad";
+import { LoadFeedback } from "@/app/components/LoadFeedback";
+import { loadAllRows } from "@/lib/load-data";
 import Link from "next/link";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
 import { MutationError } from "@/lib/confirmed-mutation";
@@ -19,7 +22,6 @@ interface Funcionario {
 export default function EquipePage() {
   const { run, isBusy } = useConfirmedMutation();
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
-  const [carregando, setCarregando] = useState(true);
   
   // Estados do formulário de criação
   const [novoNome, setNovoNome] = useState("");
@@ -33,22 +35,11 @@ export default function EquipePage() {
   const [editCargo, setEditCargo] = useState("");
   const [editDiaria, setEditDiaria] = useState("");
 
-  const carregarEquipe = async () => {
-    setCarregando(true);
-    const { data, error } = await supabase
-      .from("funcionarios")
-      .select("*")
-      .order("criado_em", { ascending: false });
-
-    if (data) setFuncionarios(data);
-    if (error) toast.error("Erro ao carregar equipe: " + error.message);
-    setCarregando(false);
-  };
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    carregarEquipe();
-  }, []);
+  const carregarEquipe = useCallback((signal: AbortSignal) => loadAllRows<Funcionario>(
+    (from, to) => supabase.from("funcionarios").select("id, nome, cargo, valor_diaria", { count: "exact" })
+      .order("criado_em", { ascending: false }).order("id", { ascending: false }).range(from, to).abortSignal(signal), signal,
+  ), []);
+  const { loading: carregando, ready, error, retry } = useDataLoad(carregarEquipe, setFuncionarios);
 
   const criarFuncionario = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,6 +120,11 @@ export default function EquipePage() {
       onConfirmed: (funcionario) => setFuncionarios(prev => prev.filter(f => f.id !== funcionario.id)),
     });
   };
+
+  if (!ready) return <section>
+    <h1 className="text-2xl font-extrabold text-zinc-900">Minha Equipe</h1>
+    <LoadFeedback error={error} retry={retry} />
+  </section>;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">

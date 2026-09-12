@@ -1,8 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
+import { useDataLoad } from "@/app/hooks/useDataLoad";
+import { LoadFeedback } from "@/app/components/LoadFeedback";
+import { loadAllRows, requireData, LoadError } from "@/lib/load-data";
 import Link from "next/link";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
 import { parseMoney } from "@/lib/money";
@@ -55,7 +58,6 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   const [tarefas, setTarefas] = useState<Tarefa[]>([]);
   const [materiais, setMateriais] = useState<Material[]>([]);
   const [novaTarefa, setNovaTarefa] = useState("");
-  const [carregando, setCarregando] = useState(true);  
   
   // Agora temos 3 abas
   const [abaAtiva, setAbaAtiva] = useState<"materiais" | "tarefas" | "caixa">("materiais");
@@ -84,39 +86,40 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   const totalMaoDeObra = transacoes.filter(t => t.tipo === "PAGAMENTO_FUNCIONARIO").reduce((acc, item) => acc + item.valor, 0);
   const lucroAtual = totalRecebido - custoMateriais - totalMaoDeObra;
 
-  const carregarDadosDaObra = async () => {
-    if (!projetoId) return;
-    setCarregando(true);
-    
-    const { data: dadosProjeto } = await supabase.from("projetos").select("titulo").eq("id", projetoId).single();
-    if (dadosProjeto) setTituloObra(dadosProjeto.titulo);
-
-    const { data: dadosTarefas } = await supabase.from("tarefas").select("*").eq("projeto_id", projetoId).order("criado_em", { ascending: true });
-    if (dadosTarefas) setTarefas(dadosTarefas);
-
-    const { data: dadosMateriais } = await supabase.from("materiais_projeto").select("*").eq("projeto_id", projetoId).order("id", { ascending: false });
-    if (dadosMateriais) setMateriais(dadosMateriais);
-
-    // Buscando dados financeiros
-    const { data: trans } = await supabase.from("financeiro_obra").select("*, funcionarios(nome)").eq("projeto_id", projetoId).order("id", { ascending: false });
-    if (trans) setTransacoes(trans);
-
-    const { data: func } = await supabase.from("funcionarios").select("id, nome, valor_diaria").order("nome");
-    if (func) setFuncionarios(func);
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user && user.user_metadata) {
-      if (user.user_metadata.nome) setNomeProfissional(user.user_metadata.nome);
-      if (user.user_metadata.telefone) setTelefoneContato(user.user_metadata.telefone);
-    }
-
-    setCarregando(false);
-  };
-
-  useEffect(() => {
-    carregarDadosDaObra();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const carregarDadosDaObra = useCallback(async (signal: AbortSignal) => {
+    if (!/^\d+$/.test(projetoId)) throw new LoadError("Obra não encontrada ou sem acesso.");
+    // Valida a obra antes de buscar seus dados. As consultas restantes são independentes.
+    const projeto = requireData(await supabase.from("projetos").select("titulo")
+      .eq("id", projetoId).abortSignal(signal).maybeSingle<{ titulo: string }>(), "Obra não encontrada ou sem acesso.");
+    const [tarefas, materiais, transacoes, funcionarios, auth] = await Promise.all([
+      loadAllRows<Tarefa>((from, to) => supabase.from("tarefas")
+        .select("id, nome, concluida, projeto_id", { count: "exact" }).eq("projeto_id", projetoId)
+        .order("criado_em").order("id").range(from, to).abortSignal(signal), signal),
+      loadAllRows<Material>((from, to) => supabase.from("materiais_projeto")
+        .select("id, nome, quantidade, projeto_id, preco_total", { count: "exact" }).eq("projeto_id", projetoId)
+        .order("id", { ascending: false }).range(from, to).abortSignal(signal), signal),
+      loadAllRows<Transacao>((from, to) => supabase.from("financeiro_obra")
+        .select("id, tipo, valor, data, descricao, funcionario_id, funcionarios(nome)", { count: "exact" }).eq("projeto_id", projetoId)
+        .order("id", { ascending: false }).range(from, to).abortSignal(signal)
+        .overrideTypes<Transacao[], { merge: false }>(), signal),
+      loadAllRows<Funcionario>((from, to) => supabase.from("funcionarios")
+        .select("id, nome, valor_diaria", { count: "exact" }).order("nome").order("id")
+        .range(from, to).abortSignal(signal), signal),
+      supabase.auth.getUser(),
+    ]);
+    if (auth.error || !auth.data.user) throw new LoadError("Não foi possível validar sua sessão. Tente novamente ou entre novamente.");
+    return { projeto, tarefas, materiais, transacoes, funcionarios, user: auth.data.user };
   }, [projetoId]);
+  const aplicarDadosDaObra = useCallback((data: Awaited<ReturnType<typeof carregarDadosDaObra>>) => {
+    setTituloObra(data.projeto.titulo);
+    setTarefas(data.tarefas);
+    setMateriais(data.materiais);
+    setTransacoes(data.transacoes);
+    setFuncionarios(data.funcionarios);
+    setNomeProfissional(data.user.user_metadata.nome || "Profissional");
+    setTelefoneContato(data.user.user_metadata.telefone || "");
+  }, []);
+  const { loading: carregando, ready, error, retry } = useDataLoad(carregarDadosDaObra, aplicarDadosDaObra);
 
   const limparPrecoEditado = (id: number) => {
     setPrecosEditados(prev => {
@@ -301,6 +304,12 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
       onConfirmed: (transacao) => setTransacoes(prev => prev.filter(t => t.id !== transacao.id)),
     });
   };
+  if (!ready) return <section>
+    <h1 className="text-2xl font-extrabold text-zinc-900">Detalhes da Obra</h1>
+    <Link href="/projetos" className="inline-block p-3 font-bold text-orange-800 underline">Voltar para projetos</Link>
+    <LoadFeedback error={error} retry={retry} />
+  </section>;
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       

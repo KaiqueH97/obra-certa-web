@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase"; // Ajustado para o atalho correto da raiz
+import { useDataLoad } from "@/app/hooks/useDataLoad";
+import { LoadFeedback } from "@/app/components/LoadFeedback";
+import { loadAllRows } from "@/lib/load-data";
 import Link from "next/link";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
 import { MutationError } from "@/lib/confirmed-mutation";
@@ -19,29 +22,19 @@ export default function Projetos() {
   const { run, isBusy } = useConfirmedMutation();
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [novoProjeto, setNovoProjeto] = useState("");
-  const [carregandoLista, setCarregandoLista] = useState(true);
-  const carregando = carregandoLista || isBusy;
+
 
   const [projetoEditando, setProjetoEditando] = useState<number | null>(null);
   const [tituloEditado, setTituloEditado] = useState("");
   
   const [projetoConfirmarExclusao, setProjetoConfirmarExclusao] = useState<number | null>(null);
 
-  useEffect(() => {
-    const buscarProjetos = async () => {
-      const { data, error } = await supabase
-        .from("projetos")
-        .select("*")
-        .order("criado_em", { ascending: false });
-
-      if (!error && data) {
-        setProjetos(data);
-      }
-      setCarregandoLista(false);
-    };
-
-    buscarProjetos();
-  }, []); 
+  const buscarProjetos = useCallback((signal: AbortSignal) => loadAllRows<Projeto>(
+    (from, to) => supabase.from("projetos").select("id, titulo, user_id, criado_em", { count: "exact" })
+      .order("criado_em", { ascending: false }).order("id", { ascending: false }).range(from, to).abortSignal(signal), signal,
+  ), []);
+  const { loading, ready, error, retry } = useDataLoad(buscarProjetos, setProjetos);
+  const carregando = loading || isBusy;
 
   const criarProjeto = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,6 +96,11 @@ export default function Projetos() {
     const data = new Date(dataIso);
     return data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
+
+  if (!ready) return <section>
+    <h1 className="text-2xl font-extrabold text-zinc-900">Meus Projetos</h1>
+    <LoadFeedback error={error} retry={retry} />
+  </section>;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">

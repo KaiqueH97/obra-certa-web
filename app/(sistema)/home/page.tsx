@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { useDataLoad } from "@/app/hooks/useDataLoad";
+import { LoadFeedback } from "@/app/components/LoadFeedback";
+import { loadAllRows } from "@/lib/load-data";
 import { Building2, AlertCircle, CheckCircle2, DollarSign, Download, Calculator, FolderKanban, ArrowRight, Users } from "lucide-react";
 
 // Tipagens para os dados que vamos buscar
@@ -27,51 +30,36 @@ export default function HomeDashboard() {
     tarefasPendentes: 0,
     custoTotal: 0
   });
-  const [carregando, setCarregando] = useState(true);
-
-  useEffect(() => {
-    const carregarDashboard = async () => {
-      setCarregando(true);
-
-      // 1. Busca os projetos mais recentes
-      const { data: projetosData } = await supabase
-        .from("projetos")
-        .select("id, titulo, criado_em")
-        .order("criado_em", { ascending: false });
-
-      // 2. Busca todas as tarefas para calcular produtividade
-      const { data: tarefasData } = await supabase
-        .from("tarefas")
-        .select("concluida, nome");
-
-      // 3. Busca os custos de todos os materiais
-      const { data: materiaisData } = await supabase
-        .from("materiais_projeto")
-        .select("preco_total");
-
-      // Realiza os cálculos
-      const obrasAtivas = projetosData?.length || 0;
-      const concluidas = tarefasData?.filter(t => t.concluida).length || 0;
-      const pendentes = tarefasData?.filter(t => !t.concluida).length || 0;
-      const custo = materiaisData?.reduce((acc, item) => {
-        const valor = typeof item.preco_total === 'string' ? parseFloat(item.preco_total) : item.preco_total;
-        return acc + (valor || 0);
-      }, 0) || 0;
-
-      // Atualiza os estados
-      setProjetos(projetosData?.slice(0, 4) || []); // Pega apenas os 4 últimos para a tabela
-      setMetricas({
-        obrasAtivas,
-        tarefasConcluidas: concluidas,
-        tarefasPendentes: pendentes,
-        custoTotal: custo
-      });
-
-      setCarregando(false);
+  const carregarDashboard = useCallback(async (signal: AbortSignal) => {
+    const [projetosData, tarefasData, materiaisData] = await Promise.all([
+      loadAllRows<ProjetoResumo>((from, to) => supabase.from("projetos")
+        .select("id, titulo, criado_em", { count: "exact" }).order("criado_em", { ascending: false })
+        .order("id", { ascending: false }).range(from, to).abortSignal(signal), signal),
+      loadAllRows<{ id: number; concluida: boolean | null }>((from, to) => supabase.from("tarefas")
+        .select("id, concluida", { count: "exact" }).order("id").range(from, to).abortSignal(signal), signal),
+      loadAllRows<{ id: number; preco_total: number | null }>((from, to) => supabase.from("materiais_projeto")
+        .select("id, preco_total", { count: "exact" }).order("id").range(from, to).abortSignal(signal), signal),
+    ]);
+    return {
+      projetos: projetosData.slice(0, 4),
+      metricas: {
+        obrasAtivas: projetosData.length,
+        tarefasConcluidas: tarefasData.filter(t => t.concluida).length,
+        tarefasPendentes: tarefasData.filter(t => !t.concluida).length,
+        custoTotal: materiaisData.reduce((acc, item) => acc + Number(item.preco_total ?? 0), 0),
+      },
     };
-
-    carregarDashboard();
   }, []);
+  const aplicarDashboard = useCallback((data: { projetos: ProjetoResumo[]; metricas: Metricas }) => {
+    setProjetos(data.projetos);
+    setMetricas(data.metricas);
+  }, []);
+  const { loading: carregando, ready, error, retry } = useDataLoad(carregarDashboard, aplicarDashboard);
+
+  if (!ready) return <section>
+    <h1 className="text-2xl font-extrabold text-zinc-900">Resumo da Obra</h1>
+    <LoadFeedback error={error} retry={retry} />
+  </section>;
 
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">

@@ -9,6 +9,7 @@ const AuthActionsContext = createContext<{
   pending: PendingAuthAction;
   login: (credentials: Credentials) => Promise<void>;
   logout: () => Promise<void>;
+  getPending: () => PendingAuthAction;
 } | null>(null);
 
 export function AuthActionsProvider({ children }: { children: React.ReactNode }) {
@@ -33,7 +34,7 @@ export function AuthActionsProvider({ children }: { children: React.ReactNode })
     return () => actions.deactivate();
   }, [actions]);
 
-  return <AuthActionsContext.Provider value={{ pending, login: actions.login, logout: actions.logout }}>
+  return <AuthActionsContext.Provider value={{ pending, login: actions.login, logout: actions.logout, getPending: actions.getPending }}>
     {children}
   </AuthActionsContext.Provider>;
 }

@@ -25,11 +25,13 @@ class AuthActionError extends Error {}
 
 export function createAuthActions(deps: Dependencies) {
   let busy = false;
+  let pendingAction: PendingAuthAction = null;
   let active = true;
 
   async function run(action: Exclude<PendingAuthAction, null>, credentials?: Credentials) {
     if (busy || !active) return;
     busy = true;
+    pendingAction = action;
     deps.onPendingChange(action);
     const id = deps.notices.loading(action === "login" ? "Conectando..." : "Saindo do sistema...");
     let navigating = false;
@@ -80,6 +82,7 @@ export function createAuthActions(deps: Dependencies) {
       // Mantém a trava durante a navegação, evitando nova requisição antes do unload.
       if (!navigating) {
         busy = false;
+        pendingAction = null;
         if (active) deps.onPendingChange(null);
       }
     }
@@ -88,6 +91,7 @@ export function createAuthActions(deps: Dependencies) {
   return {
     activate() { active = true; },
     deactivate() { active = false; },
+    getPending: () => pendingAction,
     login: (credentials: Credentials) => run("login", credentials),
     logout: () => run("logout"),
   };

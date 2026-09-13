@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuthActions } from "@/app/components/AuthActionsProvider";
+import { PrivateSessionBoundary } from "@/app/components/PrivateSessionBoundary";
 import { HardHat, LayoutDashboard, Calculator, FolderKanban, Settings, LogOut, Users } from "lucide-react";
 
 export default function SistemaLayout({
@@ -10,6 +11,10 @@ export default function SistemaLayout({
 }: {
   children: React.ReactNode;
 }) {
+  return <PrivateSessionBoundary><SistemaShell>{children}</SistemaShell></PrivateSessionBoundary>;
+}
+
+function SistemaShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const { logout, pending } = useAuthActions();

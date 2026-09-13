@@ -78,5 +78,5 @@ registrado na seção inicial.
 
 Nenhum SQL ou alteração de chave é necessário. Esta etapa trata das requisições
 que chegam ao servidor. As ações de login/logout no cliente estão documentadas na
-[etapa seguinte](./login-logout.md). A reação de outras abas já abertas à expiração
-de sessão permanece uma etapa separada.
+[etapa seguinte](./login-logout.md). A reação de abas já abertas aos eventos de
+sessão e o retorno à página estão na [etapa de sessão entre abas](./sessao-entre-abas.md).

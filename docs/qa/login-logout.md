@@ -62,6 +62,6 @@ Roteiro manual desta etapa:
    global ao entrar. Na navegação completa, as notificações da página anterior
    naturalmente deixam de existir.
 
-Nenhuma migration é necessária. Cadastro, recuperação de senha, edição do perfil,
-sincronização visual entre outras abas e restauração de páginas pelo histórico
-do navegador não foram reimplementados nesta etapa.
+Nenhuma migration é necessária. Cadastro, recuperação de senha e edição do perfil
+não foram reimplementados nesta etapa. A sincronização visual entre abas e o
+retorno pelo histórico são tratados na [etapa de sessão entre abas](./sessao-entre-abas.md).

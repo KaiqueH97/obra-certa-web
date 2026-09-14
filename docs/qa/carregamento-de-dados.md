@@ -48,7 +48,10 @@ Essas verificações não constituem uma transação: alterações concorrentes 
 mesma contagem podem não ser detectadas entre consultas. Uma visão transacional
 exigiria agregação/consulta específica no servidor.
 
-Esta é paginação de leitura, sem novos controles de páginas na interface. Todos
+No dashboard, a [etapa de resumo no banco](./resumo-dashboard.md) substitui a leitura
+das listas por uma RPC com agregações e quatro projetos recentes.
+
+Nas demais telas, esta é paginação de leitura, sem novos controles de páginas na interface. Todos
 os registros ainda ficam na memória do cliente. Agregações no banco e paginação
 visual continuam sendo melhorias futuras para bases grandes. Uma base que não
 termine de carregar em 20 segundos apresentará erro, sem totais parciais.

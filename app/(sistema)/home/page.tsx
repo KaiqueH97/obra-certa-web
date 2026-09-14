@@ -5,61 +5,24 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useDataLoad } from "@/app/hooks/useDataLoad";
 import { LoadFeedback } from "@/app/components/LoadFeedback";
-import { loadAllRows } from "@/lib/load-data";
+import { requireData } from "@/lib/load-data";
+import { parseDashboardSummary, type DashboardSummary } from "@/lib/dashboard";
 import { Building2, AlertCircle, CheckCircle2, DollarSign, Download, Calculator, FolderKanban, ArrowRight, Users } from "lucide-react";
 
-// Tipagens para os dados que vamos buscar
-interface ProjetoResumo {
-  id: number;
-  titulo: string;
-  criado_em: string;
-}
-
-interface Metricas {
-  obrasAtivas: number;
-  tarefasConcluidas: number;
-  tarefasPendentes: number;
-  custoTotal: number;
-}
-
 export default function HomeDashboard() {
-  const [projetos, setProjetos] = useState<ProjetoResumo[]>([]);
-  const [metricas, setMetricas] = useState<Metricas>({
-    obrasAtivas: 0,
-    tarefasConcluidas: 0,
-    tarefasPendentes: 0,
-    custoTotal: 0
-  });
+  const [resumo, setResumo] = useState<DashboardSummary | null>(null);
   const carregarDashboard = useCallback(async (signal: AbortSignal) => {
-    const [projetosData, tarefasData, materiaisData] = await Promise.all([
-      loadAllRows<ProjetoResumo>((from, to) => supabase.from("projetos")
-        .select("id, titulo, criado_em", { count: "exact" }).order("criado_em", { ascending: false })
-        .order("id", { ascending: false }).range(from, to).abortSignal(signal), signal),
-      loadAllRows<{ id: number; concluida: boolean | null }>((from, to) => supabase.from("tarefas")
-        .select("id, concluida", { count: "exact" }).order("id").range(from, to).abortSignal(signal), signal),
-      loadAllRows<{ id: number; preco_total: number | null }>((from, to) => supabase.from("materiais_projeto")
-        .select("id, preco_total", { count: "exact" }).order("id").range(from, to).abortSignal(signal), signal),
-    ]);
-    return {
-      projetos: projetosData.slice(0, 4),
-      metricas: {
-        obrasAtivas: projetosData.length,
-        tarefasConcluidas: tarefasData.filter(t => t.concluida).length,
-        tarefasPendentes: tarefasData.filter(t => !t.concluida).length,
-        custoTotal: materiaisData.reduce((acc, item) => acc + Number(item.preco_total ?? 0), 0),
-      },
-    };
+    const response = await supabase.rpc("resumo_dashboard").abortSignal(signal);
+    return parseDashboardSummary(requireData(response));
   }, []);
-  const aplicarDashboard = useCallback((data: { projetos: ProjetoResumo[]; metricas: Metricas }) => {
-    setProjetos(data.projetos);
-    setMetricas(data.metricas);
-  }, []);
-  const { loading: carregando, ready, error, retry } = useDataLoad(carregarDashboard, aplicarDashboard);
+  const { loading: carregando, ready, error, retry } = useDataLoad(carregarDashboard, setResumo);
 
-  if (!ready) return <section>
+  if (!ready || !resumo) return <section>
     <h1 className="text-2xl font-extrabold text-zinc-900">Resumo da Obra</h1>
     <LoadFeedback error={error} retry={retry} />
   </section>;
+
+  const { projetos, metricas } = resumo;
 
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
@@ -68,7 +31,7 @@ export default function HomeDashboard() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-zinc-900 tracking-tight">Resumo da Obra</h1>
-          <p className="text-sm md:text-base text-zinc-500">Acompanhamento em tempo real dos seus canteiros.</p>
+          <p className="text-sm md:text-base text-zinc-500">Resumo dos seus canteiros no momento da consulta.</p>
         </div>
         
         <button className="hidden md:flex items-center gap-2 bg-zinc-900 text-white px-5 py-2.5 rounded-xl hover:bg-zinc-800 transition-colors shadow-sm font-medium">
@@ -98,7 +61,7 @@ export default function HomeDashboard() {
         <div className="bg-white p-4 md:p-6 rounded-2xl border border-zinc-100 shadow-sm relative overflow-hidden">
           <div className="flex items-center gap-3 mb-2 md:mb-4">
             <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><Building2 size={20} /></div>
-            <span className="text-xs md:text-sm font-semibold text-zinc-500">Obras Ativas</span>
+            <span className="text-xs md:text-sm font-semibold text-zinc-500">Obras Cadastradas</span>
           </div>
           {carregando ? <div className="h-10 w-16 bg-zinc-100 animate-pulse rounded"></div> : <p className="text-2xl md:text-4xl font-black text-zinc-900">{metricas.obrasAtivas}</p>}
         </div>
@@ -122,7 +85,7 @@ export default function HomeDashboard() {
         <div className="bg-white p-4 md:p-6 rounded-2xl border border-zinc-100 shadow-sm">
           <div className="flex items-center gap-3 mb-2 md:mb-4">
             <div className="p-2 bg-purple-100 text-purple-600 rounded-lg"><DollarSign size={20} /></div>
-            <span className="text-xs md:text-sm font-semibold text-zinc-500">Custo Total</span>
+            <span className="text-xs md:text-sm font-semibold text-zinc-500">Custo de Materiais</span>
           </div>
           {carregando ? <div className="h-10 w-32 bg-zinc-100 animate-pulse rounded"></div> : <p className="text-xl md:text-3xl font-black text-zinc-900">R$ {metricas.custoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
         </div>
@@ -182,7 +145,7 @@ export default function HomeDashboard() {
               <div className="flex gap-3 items-start border-l-2 border-orange-500 pl-3">
                 <div className="mt-0.5 text-orange-600"><AlertCircle size={18} /></div>
                 <div>
-                  <p className="text-sm font-semibold text-zinc-900">Tarefas Atrasadas</p>
+                  <p className="text-sm font-semibold text-zinc-900">Tarefas Pendentes</p>
                   <p className="text-xs text-zinc-500 mt-1">Você tem {metricas.tarefasPendentes} tarefas pendentes em suas obras. Não esqueça de dar baixa!</p>
                 </div>
               </div>

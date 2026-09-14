@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useDataLoad } from "@/app/hooks/useDataLoad";
 import { LoadFeedback } from "@/app/components/LoadFeedback";
+import { DeleteConfirmation } from "@/app/components/DeleteConfirmation";
 import { loadAllRows } from "@/lib/load-data";
 import Link from "next/link";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
@@ -22,6 +23,8 @@ interface Funcionario {
 export default function EquipePage() {
   const { run, isBusy } = useConfirmedMutation();
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
+  const [excluindoId, setExcluindoId] = useState<number | null>(null);
+  const exclusaoTrigger = useRef<HTMLButtonElement | null>(null);
   
   // Estados do formulário de criação
   const [novoNome, setNovoNome] = useState("");
@@ -68,6 +71,7 @@ export default function EquipePage() {
   };
 
   const iniciarEdicao = (func: Funcionario) => {
+    setExcluindoId(null);
     setEditandoId(func.id);
     setEditNome(func.nome);
     setEditCargo(func.cargo || "");
@@ -92,22 +96,9 @@ export default function EquipePage() {
     });
   };
 
-  const confirmarExclusao = (id: number, nome: string) => {
-    toast(
-      (t) => (
-        <div className="flex flex-col gap-2">
-          <p className="font-bold text-zinc-900 text-lg">Remover {nome}?</p>
-          <p className="text-sm text-zinc-600 mb-2">
-            O histórico de pagamentos deste profissional nas obras será mantido.
-          </p>
-          <div className="flex justify-end gap-2">
-            <button onClick={() => toast.dismiss(t.id)} className="px-4 py-2 bg-zinc-200 text-zinc-800 rounded-lg font-bold hover:bg-zinc-300 transition">Cancelar</button>
-            <button onClick={() => { toast.dismiss(t.id); executarExclusao(id); }} className="px-4 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition">Remover</button>
-          </div>
-        </div>
-      ),
-      { duration: Infinity, id: `excluir-${id}` }
-    );
+  const cancelarExclusao = () => {
+    setExcluindoId(null);
+    exclusaoTrigger.current?.focus();
   };
 
   const executarExclusao = async (id: number) => {
@@ -117,7 +108,10 @@ export default function EquipePage() {
       success: "Profissional removido da equipe.",
       request: () => supabase.from("funcionarios").delete().eq("id", id)
         .select("id").single<{ id: number }>(),
-      onConfirmed: (funcionario) => setFuncionarios(prev => prev.filter(f => f.id !== funcionario.id)),
+      onConfirmed: (funcionario) => {
+        setFuncionarios(prev => prev.filter(f => f.id !== funcionario.id));
+        setExcluindoId(null);
+      },
     });
   };
 
@@ -226,7 +220,7 @@ export default function EquipePage() {
             ) : (
               <div className="divide-y divide-zinc-200">
                 {funcionarios.map((func) => (
-                  <div key={func.id} className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-zinc-50 transition-colors">
+                  <div key={func.id} className="p-4 flex flex-col md:flex-row md:flex-wrap md:items-center justify-between gap-4 hover:bg-zinc-50 transition-colors">
                     
                     {editandoId === func.id ? (
                       /* MODO EDIÇÃO */
@@ -265,12 +259,24 @@ export default function EquipePage() {
                           </div>
 
                           <div className="flex items-center gap-2">
-                            <button disabled={salvando} onClick={() => iniciarEdicao(func)} className="p-2.5 text-zinc-500 hover:text-blue-700 rounded-lg hover:bg-blue-100 transition-colors border border-transparent hover:border-blue-200"><Edit2 size={18} /></button>
-                            <button disabled={salvando} onClick={() => confirmarExclusao(func.id, func.nome)} className="p-2.5 text-zinc-500 hover:text-red-700 rounded-lg hover:bg-red-100 transition-colors border border-transparent hover:border-red-200"><Trash2 size={18} /></button>
+                            <button aria-label={`Editar ${func.nome}`} disabled={salvando} onClick={() => iniciarEdicao(func)} className="p-2.5 text-zinc-500 hover:text-blue-700 rounded-lg hover:bg-blue-100 transition-colors border border-transparent hover:border-blue-200"><Edit2 size={18} /></button>
+                            <button type="button" aria-label={`Excluir ${func.nome}`} aria-expanded={excluindoId === func.id} disabled={salvando} onClick={event => {
+                              exclusaoTrigger.current = event.currentTarget;
+                              setEditandoId(null);
+                              setExcluindoId(func.id);
+                            }} className="min-h-11 min-w-11 p-2.5 text-zinc-700 hover:text-red-700 rounded-lg hover:bg-red-100 transition-colors border border-transparent hover:border-red-200 focus-visible:outline-2 focus-visible:outline-red-800"><Trash2 size={18} /></button>
                           </div>
                         </div>
                       </>
                     )}
+                    {excluindoId === func.id && <DeleteConfirmation
+                      key={func.id}
+                      title={`Excluir ${func.nome}?`}
+                      description="Os lançamentos de pagamentos nas obras serão mantidos, mas deixarão de ter vínculo com este profissional."
+                      pending={salvando}
+                      onCancel={cancelarExclusao}
+                      onConfirm={() => { void executarExclusao(func.id); }}
+                    />}
                   </div>
                 ))}
               </div>

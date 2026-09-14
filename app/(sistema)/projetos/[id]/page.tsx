@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
 import { useDataLoad } from "@/app/hooks/useDataLoad";
 import { LoadFeedback } from "@/app/components/LoadFeedback";
+import { DeleteConfirmation } from "@/app/components/DeleteConfirmation";
 import { loadAllRows, requireData, LoadError } from "@/lib/load-data";
 import Link from "next/link";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
@@ -57,6 +58,8 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   const [tituloObra, setTituloObra] = useState("Carregando...");
   const [tarefas, setTarefas] = useState<Tarefa[]>([]);
   const [materiais, setMateriais] = useState<Material[]>([]);
+  const [materialExcluindo, setMaterialExcluindo] = useState<number | null>(null);
+  const exclusaoTrigger = useRef<HTMLButtonElement | null>(null);
   const [novaTarefa, setNovaTarefa] = useState("");
   
   // Agora temos 3 abas
@@ -156,6 +159,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   };
 
   const iniciarEdicaoMaterial = (item: Material) => {
+    setMaterialExcluindo(null);
     setMaterialEditando(item.id);
     setNomeEditado(item.nome);
     setQtdEditada(item.quantidade);
@@ -176,27 +180,9 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
     });
   };
 
-  const confirmarExclusaoMaterial = (id: number) => {
-    toast.dismiss(); 
-    
-    toast(
-      (t) => (
-        <div className="flex flex-col gap-2">
-          <p className="font-bold text-zinc-900 text-lg">Excluir material?</p>
-          <p className="text-sm text-zinc-600 mb-2">Ele será removido permanentemente deste orçamento.</p>
-          <div className="flex justify-end gap-2">
-            <button onClick={() => toast.dismiss(t.id)} className="px-4 py-2 bg-zinc-200 text-zinc-800 rounded-lg font-bold hover:bg-zinc-300 transition-colors">
-              Cancelar
-            </button>
-            <button onClick={() => { toast.dismiss(t.id); executarExclusaoMaterial(id); }} className="px-4 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition-colors shadow-sm">
-              Sim, Excluir
-            </button>
-          </div>
-        </div>
-      ),
-      // 2. ID dinâmico: garante que o React saiba exatamente qual item está sendo apagado
-      { duration: Infinity, id: `exclusao-${id}` } 
-    );
+  const cancelarExclusaoMaterial = () => {
+    setMaterialExcluindo(null);
+    exclusaoTrigger.current?.focus();
   };
 
   const executarExclusaoMaterial = async (id: number) => {
@@ -206,7 +192,10 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
       success: "Material excluído!",
       request: () => supabase.from("materiais_projeto").delete()
         .eq("id", id).eq("projeto_id", projetoId).select("id").single<{ id: number }>(),
-      onConfirmed: (material) => setMateriais(prev => prev.filter(item => item.id !== material.id)),
+      onConfirmed: (material) => {
+        setMateriais(prev => prev.filter(item => item.id !== material.id));
+        setMaterialExcluindo(prev => prev === material.id ? null : prev);
+      },
     });
   };
 
@@ -414,8 +403,12 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                                 <span className="inline-block bg-orange-100 text-orange-800 py-1 px-3 rounded-full font-bold text-xs mt-1">{item.quantidade}</span>
                               </div>
                               <div className="flex gap-1">
-                                <button disabled={isPending(`material-${item.id}`)} onClick={() => iniciarEdicaoMaterial(item)} className="p-2 text-zinc-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"><Edit2 size={18} /></button>
-                                <button disabled={isPending(`material-${item.id}`)} onClick={() => confirmarExclusaoMaterial(item.id)} className="p-2 text-zinc-500 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"><Trash2 size={18} /></button>
+                                <button aria-label={`Editar ${item.nome}`} disabled={isPending(`material-${item.id}`)} onClick={() => iniciarEdicaoMaterial(item)} className="p-2 text-zinc-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"><Edit2 size={18} /></button>
+                                <button type="button" aria-label={`Excluir ${item.nome}`} aria-expanded={materialExcluindo === item.id} disabled={isPending(`material-${item.id}`)} onClick={event => {
+                                  exclusaoTrigger.current = event.currentTarget;
+                                  setMaterialEditando(null);
+                                  setMaterialExcluindo(item.id);
+                                }} className="min-h-11 min-w-11 p-2 text-zinc-700 hover:text-red-700 rounded-lg hover:bg-red-50 transition-colors focus-visible:outline-2 focus-visible:outline-red-800"><Trash2 size={18} /></button>
                               </div>
                             </div>
                             <div className="flex justify-between items-center bg-zinc-50 p-3 rounded-xl border border-zinc-200 mt-1">
@@ -427,6 +420,14 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                             </div>
                           </>
                         )}
+                        {materialExcluindo === item.id && <DeleteConfirmation
+                          key={item.id}
+                          title={`Excluir ${item.nome}?`}
+                          description="O material e seu custo serão removidos permanentemente deste orçamento."
+                          pending={isPending(`material-${item.id}`)}
+                          onCancel={cancelarExclusaoMaterial}
+                          onConfirm={() => { void executarExclusaoMaterial(item.id); }}
+                        />}
                       </li>
                     ))}
                   </ul>

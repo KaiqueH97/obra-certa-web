@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useDataLoad } from "@/app/hooks/useDataLoad";
 import { LoadFeedback } from "@/app/components/LoadFeedback";
 import { loadAllRows } from "@/lib/load-data";
 import toast from "react-hot-toast";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
-import { calculateMoneyTotal, parseMoney } from "@/lib/money";
+import { calculateMaterial, type MaterialEstimate } from "@/lib/material-calculation";
 import { Calculator, Plus, X, Building2, Save, Ruler, CheckCircle2, DollarSign } from "lucide-react";
 
 const OPCOES_MATERIAIS: Record<string, { nome: string; tipos: string[] }> = {
@@ -62,14 +62,8 @@ export default function Calculadora() {
   const [larguraPiso, setLarguraPiso] = useState("");
   const [precoUnitario, setPrecoUnitario] = useState(""); // NOVO ESTADO: Preço do material
   
-  const [resultado, setResultado] = useState<{ 
-    quantidade: string; 
-    unidade: string; 
-    area: string; 
-    materialNome: string;
-    totalPecas?: number; 
-    precoTotalEstimado?: number;
-  } | null>(null);
+  const [resultado, setResultado] = useState<(MaterialEstimate & { materialNome: string }) | null>(null);
+  const proximaMedidaId = useRef(2);
 
   const [projetos, setProjetos] = useState<{ id: number; titulo: string }[]>([]);
   const [projetoSelecionado, setProjetoSelecionado] = useState("");
@@ -82,88 +76,30 @@ export default function Calculadora() {
 
   const adicionarMedida = () => {
     setResultado(null);
-    setMedidas([...medidas, { id: Date.now(), altura: "", largura: "" }]);
+    const id = proximaMedidaId.current++;
+    setMedidas(prev => [...prev, { id, altura: "", largura: "" }]);
   };
 
   const atualizarMedida = (id: number, campo: "altura" | "largura", valor: string) => {
-    setMedidas(medidas.map(m => m.id === id ? { ...m, [campo]: valor } : m));
+    setMedidas(prev => prev.map(m => m.id === id ? { ...m, [campo]: valor } : m));
   };
 
   const removerMedida = (id: number) => {
     setResultado(null);
-    setMedidas(medidas.filter(m => m.id !== id));
+    setMedidas(prev => prev.filter(m => m.id !== id));
   };
 
   const realizarCalculo = (e: React.FormEvent) => {
     e.preventDefault();
     setResultado(null);
-    const preco = parseMoney(precoUnitario, { allowEmpty: true });
-    if (!preco.ok) return toast.error(`Preço unitário: ${preco.error}`);
-    let areaTotal = 0;
-
-    for (const med of medidas) {
-      const alt = parseFloat(med.altura.replace(",", "."));
-      const larg = parseFloat(med.largura.replace(",", "."));
-
-      if (!Number.isFinite(alt) || !Number.isFinite(larg) || alt <= 0 || larg <= 0) {
-        toast.error("Preencha corretamente todas as medidas (Altura e Largura).");
-        return;
-      }
-      areaTotal += (alt * larg);
+    if (!Object.hasOwn(OPCOES_MATERIAIS, superficie) || !OPCOES_MATERIAIS[superficie].tipos.includes(material)) {
+      toast.error("Selecione uma superfície e um material válidos.");
+      return;
     }
+    const calculo = calculateMaterial({ superficie, medidas, comprimentoPiso, larguraPiso, precoUnitario });
+    if (!calculo.ok) return toast.error(calculo.error);
+    setResultado({ ...calculo.value, materialNome: material });
 
-    let qtdComQuebra = areaTotal;
-    let unid = "m²";
-    let pecasEstimadas = 0;
-
-    switch (superficie) {
-      case "piso":
-      case "contrapiso":
-      case "laje":
-      case "telhado":
-      case "impermeabilizacao":
-        qtdComQuebra = areaTotal * 1.10; // 10% de quebra
-        unid = "m² (já c/ 10% de quebra)";
-        
-        if (superficie === "piso" && comprimentoPiso && larguraPiso) {
-            const compM = parseFloat(comprimentoPiso) / 100;
-            const largM = parseFloat(larguraPiso) / 100;
-            const areaPeca = compM * largM;
-            pecasEstimadas = Math.ceil(qtdComQuebra / areaPeca);
-        }
-        break;
-      case "parede":
-      case "reboco":
-      case "revestimento":
-        qtdComQuebra = areaTotal;
-        unid = "m²";
-        break;
-      case "forro":
-        qtdComQuebra = areaTotal;
-        unid = "m² de forro";
-        break;
-      case "pintura":
-        qtdComQuebra = areaTotal;
-        unid = "m² (Consultar rendimento)";
-        break;
-      default:
-        qtdComQuebra = areaTotal;
-        unid = "m²";
-        break;
-    }
-
-    const custo = calculateMoneyTotal(preco.cents, qtdComQuebra);
-    if (!custo.ok) return toast.error(custo.error);
-
-    setResultado({
-      quantidade: qtdComQuebra.toFixed(2).replace(".", ","),
-      unidade: unid,
-      area: areaTotal.toFixed(2).replace(".", ","),
-      materialNome: material || OPCOES_MATERIAIS[superficie]?.nome || "Material",
-      totalPecas: pecasEstimadas > 0 ? pecasEstimadas : undefined,
-      precoTotalEstimado: custo.value
-    });
-    
     toast.success("Cálculo realizado com sucesso!");
   };
 
@@ -184,7 +120,7 @@ export default function Calculadora() {
         setResultado(null);
         setSuperficie("");
         setMaterial("");
-        setMedidas([{ id: Date.now(), altura: "", largura: "" }]);
+        setMedidas([{ id: proximaMedidaId.current++, altura: "", largura: "" }]);
         setComprimentoPiso("");
         setLarguraPiso("");
         setPrecoUnitario("");
@@ -216,8 +152,9 @@ export default function Calculadora() {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-zinc-900 text-sm font-bold mb-2">Superfície</label>
+                <label htmlFor="superficie" className="block text-zinc-900 text-sm font-bold mb-2">Superfície</label>
                 <select 
+                  id="superficie"
                   className="w-full p-4 md:p-3 border border-zinc-300 rounded-xl text-zinc-900 bg-white focus:ring-2 focus:ring-orange-600 outline-none transition-all"
                   value={superficie}
                   onChange={(e) => {
@@ -234,8 +171,9 @@ export default function Calculadora() {
               </div>
 
               <div>
-                <label className="block text-zinc-900 text-sm font-bold mb-2">Tipo de material</label>
+                <label htmlFor="material" className="block text-zinc-900 text-sm font-bold mb-2">Tipo de material</label>
                 <select
+                  id="material"
                   className="w-full p-4 md:p-3 border border-zinc-300 rounded-xl text-zinc-900 bg-white focus:ring-2 focus:ring-orange-600 outline-none disabled:bg-zinc-100 disabled:text-zinc-400 transition-all"
                   value={material}
                   onChange={(e) => setMaterial(e.target.value)}
@@ -260,9 +198,11 @@ export default function Calculadora() {
                 </p>
                 <div className="flex gap-4">
                   <div className="flex-1">
-                    <label className="block text-orange-900 text-xs font-bold mb-1">Comprimento (cm)</label>
+                    <label htmlFor="comprimento-peca" className="block text-orange-900 text-xs font-bold mb-1">Comprimento (cm)</label>
                     <input
-                      type="number"
+                      id="comprimento-peca"
+                      type="text"
+                      inputMode="decimal"
                       className="w-full p-3 border border-orange-300 rounded-lg bg-white text-zinc-900 text-sm focus:ring-2 focus:ring-orange-600 outline-none"
                       value={comprimentoPiso}
                       onChange={(e) => setComprimentoPiso(e.target.value)}
@@ -270,9 +210,11 @@ export default function Calculadora() {
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="block text-orange-900 text-xs font-bold mb-1">Largura (cm)</label>
+                    <label htmlFor="largura-peca" className="block text-orange-900 text-xs font-bold mb-1">Largura (cm)</label>
                     <input
-                      type="number"
+                      id="largura-peca"
+                      type="text"
+                      inputMode="decimal"
                       className="w-full p-3 border border-orange-300 rounded-lg bg-white text-zinc-900 text-sm focus:ring-2 focus:ring-orange-600 outline-none"
                       value={larguraPiso}
                       onChange={(e) => setLarguraPiso(e.target.value)}
@@ -301,8 +243,9 @@ export default function Calculadora() {
                   <div key={medida.id} className="flex gap-2 items-end bg-zinc-50 p-3 md:p-4 rounded-xl border border-zinc-200 animate-in slide-in-from-left-2">
                     
                     <div className="w-full">
-                      <label className="block text-zinc-600 text-xs font-bold mb-1">Altura {index + 1} (m)</label>
+                      <label htmlFor={`altura-${medida.id}`} className="block text-zinc-600 text-xs font-bold mb-1">Altura {index + 1} (m)</label>
                       <input
+                        id={`altura-${medida.id}`}
                         type="text"
                         inputMode="decimal"
                         className="w-full p-4 md:p-3 border border-zinc-300 rounded-lg text-base md:text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 transition-all"
@@ -314,8 +257,9 @@ export default function Calculadora() {
                     </div>
                     
                     <div className="w-full">
-                      <label className="block text-zinc-600 text-xs font-bold mb-1">Largura {index + 1} (m)</label>
+                      <label htmlFor={`largura-${medida.id}`} className="block text-zinc-600 text-xs font-bold mb-1">Largura {index + 1} (m)</label>
                       <input
+                        id={`largura-${medida.id}`}
                         type="text"
                         inputMode="decimal"
                         className="w-full p-4 md:p-3 border border-zinc-300 rounded-lg text-base md:text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 transition-all"
@@ -329,6 +273,7 @@ export default function Calculadora() {
                     <div className="flex gap-1 shrink-0">
                       <button
                         type="button"
+                        aria-label="Adicionar área"
                         onClick={adicionarMedida}
                         className="bg-zinc-200 text-zinc-700 h-14 w-12 md:h-11 md:w-11 rounded-lg font-black text-xl hover:bg-zinc-300 transition-colors flex items-center justify-center"
                       >
@@ -338,6 +283,7 @@ export default function Calculadora() {
                       {medidas.length > 1 && (
                         <button
                           type="button"
+                          aria-label={`Remover área ${index + 1}`}
                           onClick={() => removerMedida(medida.id)}
                           className="bg-red-100 text-red-600 h-14 w-12 md:h-11 md:w-11 rounded-lg font-bold hover:bg-red-200 transition-colors flex items-center justify-center"
                         >
@@ -352,12 +298,13 @@ export default function Calculadora() {
 
             {/* NOVO CAMPO: Valor por m2/Unidade */}
             <div className="bg-emerald-50 p-4 md:p-5 rounded-xl border border-emerald-200 mt-2">
-               <label className="block text-emerald-900 text-sm font-bold mb-2 items-center gap-1">
-                 <DollarSign size={16} /> Preço do m² / Unidade (Opcional)
+               <label htmlFor="preco-metro" className="block text-emerald-900 text-sm font-bold mb-2 items-center gap-1">
+                 <DollarSign size={16} /> Preço por m² (Opcional)
                </label>
                <div className="flex items-center bg-white border border-emerald-300 rounded-lg px-3 focus-within:ring-2 focus-within:ring-emerald-600 transition-all shadow-sm">
                  <span className="text-emerald-700 font-bold text-sm">R$</span>
                  <input
+                   id="preco-metro"
                    type="text"
                    inputMode="decimal"
                    className="w-full p-3 outline-none text-zinc-900 bg-transparent text-right font-bold"
@@ -366,7 +313,7 @@ export default function Calculadora() {
                    placeholder="0,00"
                  />
                </div>
-               <p className="text-xs text-emerald-700 mt-2 font-medium">Preencha para já incluir o valor financeiro no caixa da sua obra.</p>
+               <p className="text-xs text-emerald-700 mt-2 font-medium">O preço é multiplicado pela área calculada, incluindo a margem quando aplicável. Ao salvar, ele compõe o custo de materiais da obra.</p>
             </div>
 
             <button
@@ -411,7 +358,7 @@ export default function Calculadora() {
                   </p>
                 </div>
 
-                {resultado.totalPecas && (
+                {resultado.totalPecas !== undefined && (
                   <div className="bg-emerald-100/50 p-4 border-b border-emerald-100">
                     <p className="text-emerald-800 font-bold text-sm mb-1">Estimativa de Peças:</p>
                     <p className="text-2xl font-black text-emerald-950">~ {resultado.totalPecas} unidades</p>
@@ -420,7 +367,7 @@ export default function Calculadora() {
                 )}
 
                 {/* VISUAL NO RESULTADO: Exibição do Custo Total */}
-                {resultado.precoTotalEstimado && (
+                {resultado.precoTotalEstimado > 0 && (
                   <div className="bg-emerald-600 p-4 border-b border-emerald-700 flex justify-between items-center text-white">
                     <p className="font-bold text-sm text-emerald-100 uppercase tracking-wider">Custo Estimado:</p>
                     <p className="text-2xl font-black">R$ {resultado.precoTotalEstimado.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
@@ -428,12 +375,13 @@ export default function Calculadora() {
                 )}
 
                 <div className="p-6 bg-white">
-                  <label className="block text-sm font-bold mb-3 text-zinc-900 items-center gap-2">
+                  <label htmlFor="projeto-calculo" className="block text-sm font-bold mb-3 text-zinc-900 items-center gap-2">
                     <Building2 size={16} className="text-orange-600"/> Vincular a uma Obra Ativa
                   </label>
                   
                   {!ready && <LoadFeedback error={error} retry={retry} />}
                   <select
+                    id="projeto-calculo"
                     className="w-full p-4 md:p-3 mb-4 rounded-xl border border-zinc-300 bg-zinc-50 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-orange-600 font-medium transition-all"
                     disabled={!ready || salvando} value={projetoSelecionado}
                     onChange={(e) => setProjetoSelecionado(e.target.value)}

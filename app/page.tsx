@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { HardHat, Ruler, Smartphone, Calculator, ArrowRight, Lock, Wallet, Users } from "lucide-react";
 import toast from "react-hot-toast";
+import { calculateArea } from "@/lib/material-calculation";
 
 export default function LandingPage() {
   // Estados para a calculadora isca
@@ -11,8 +12,8 @@ export default function LandingPage() {
   const [altura, setAltura] = useState("");
   
   // Regra de negócio simples: ~25 tijolos baianos (8 furos) por m² (com margem)
-  const area = (parseFloat(largura) || 0) * (parseFloat(altura) || 0);
-  const quantidadeTijolos = Math.ceil(area * 25);
+  const simulacao = calculateArea([{ largura, altura }]);
+  const quantidadeTijolos = simulacao.ok ? Math.ceil(simulacao.value * 25) : null;
 
   const handleSalvarSimulacao = () => {
     // Gatilho psicológico para conversão de usuários
@@ -92,9 +93,9 @@ export default function LandingPage() {
 
           <div className="space-y-4 mb-6">
             <div>
-              <label className="block text-sm font-bold text-zinc-700 mb-1.5">Largura da Parede (m)</label>
+              <label htmlFor="simulacao-largura" className="block text-sm font-bold text-zinc-700 mb-1.5">Largura da Parede (m)</label>
               <input 
-                type="number" 
+                id="simulacao-largura" type="text" inputMode="decimal"
                 value={largura}
                 onChange={(e) => setLargura(e.target.value)}
                 placeholder="Ex: 4.5"
@@ -102,9 +103,9 @@ export default function LandingPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-bold text-zinc-700 mb-1.5">Altura da Parede (m)</label>
+              <label htmlFor="simulacao-altura" className="block text-sm font-bold text-zinc-700 mb-1.5">Altura da Parede (m)</label>
               <input 
-                type="number" 
+                id="simulacao-altura" type="text" inputMode="decimal"
                 value={altura}
                 onChange={(e) => setAltura(e.target.value)}
                 placeholder="Ex: 3.0"
@@ -116,13 +117,15 @@ export default function LandingPage() {
           <div className="bg-zinc-100 p-5 rounded-xl border border-zinc-200 mb-6">
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm font-bold text-zinc-600">Área total:</span>
-              <span className="font-extrabold text-zinc-900">{area > 0 ? area.toFixed(2) : "0.00"} m²</span>
+              <span className="font-extrabold text-zinc-900">{simulacao.ok ? simulacao.value.toFixed(2).replace(".", ",") : "—"} m²</span>
             </div>
             <div className="flex justify-between items-center text-lg">
               <span className="font-extrabold text-zinc-900">Tijolos necessários:</span>
-              <span className="font-black text-orange-600">{quantidadeTijolos > 0 ? quantidadeTijolos : "0"} un.</span>
+              <span className="font-black text-orange-600">{quantidadeTijolos ?? "—"} un.</span>
             </div>
           </div>
+
+          {!simulacao.ok && largura.trim() && altura.trim() && <p role="status" className="mb-4 text-sm font-medium text-red-800">{simulacao.error}</p>}
 
           <button 
             onClick={handleSalvarSimulacao}

@@ -20,7 +20,8 @@
     "test:dashboard-db": "python3 tests/database/test_dashboard.py",
     "test:calculator": "node --test tests/material-calculation.test.mjs tests/calculator.test.mjs",
     "test:signup": "node --test tests/signup.test.mjs tests/signup-page.test.mjs",
-    "test:password-reset": "node --test tests/password-reset.test.mjs tests/password-reset-page.test.mjs"
+    "test:password-reset": "node --test tests/password-reset.test.mjs tests/password-reset-page.test.mjs",
+    "test:profile": "node --test tests/profile.test.mjs tests/profile-page.test.mjs"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",

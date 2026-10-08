@@ -1,77 +1,64 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useAuthActions } from "@/app/components/AuthActionsProvider";
-import toast from "react-hot-toast";
+import { useDataLoad } from "@/app/hooks/useDataLoad";
+import { LoadFeedback } from "@/app/components/LoadFeedback";
+import { createProfileSaver, profileInitials, readProfile, type Profile, type ProfileSaveState } from "@/lib/profile";
 import { User, Phone, Mail, LogOut, Shield, Save, X, HardHat, Key } from "lucide-react";
 
 export default function Perfil() {
   const router = useRouter();
-  const { logout, pending } = useAuthActions();
-  const [nome, setNome] = useState<string>("Carregando...");
-  const [email, setEmail] = useState<string>("...");  
-  const [telefone, setTelefone] = useState<string>(""); 
-  
+  const { logout, pending, getPending } = useAuthActions();
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [editando, setEditando] = useState(false);
   const [novoNome, setNovoNome] = useState("");
   const [novoTelefone, setNovoTelefone] = useState("");
-  const [salvando, setSalvando] = useState(false);
+  const [saveState, setSaveState] = useState<ProfileSaveState>({ status: "idle", message: null });
+  const [saver] = useState(() => createProfileSaver({
+    getUser: () => supabase.auth.getUser(),
+    update: data => supabase.auth.updateUser({ data }),
+    isAuthBusy: () => getPending() !== null,
+    onState: setSaveState,
+    onConfirmed: confirmed => { setProfile(confirmed); setEditando(false); },
+  }));
+  const feedback = useRef<HTMLDivElement>(null);
+  const carregarPerfil = useCallback(async () => readProfile(await supabase.auth.getUser()), []);
+  const { ready, error, retry } = useDataLoad(carregarPerfil, setProfile);
+  const salvando = saveState.status === "saving";
+  const bloqueado = saveState.status === "uncertain" || saveState.status === "blocked";
+  const ocupado = salvando || pending !== null;
 
   useEffect(() => {
-    const carregarUsuario = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setEmail(user.email ?? "E-mail não encontrado");
-        
-        const nomeAtual = user.user_metadata?.nome || "Usuário";
-        const telefoneAtual = user.user_metadata?.telefone || ""; 
-        
-        setNome(nomeAtual);
-        setNovoNome(nomeAtual);
-        setTelefone(telefoneAtual);
-        setNovoTelefone(telefoneAtual);
-      }
-    };
-    
-    carregarUsuario();
-  }, []);
+    saver.activate();
+    return () => saver.deactivate();
+  }, [saver]);
 
-  const handleSalvarDados = async () => {
-    if (!novoNome.trim()) {
-      toast.error("O nome não pode ficar vazio.");
-      return;
-    }
+  useEffect(() => {
+    if (saveState.message) feedback.current?.focus();
+  }, [saveState]);
 
-    setSalvando(true);
-    const toastId = toast.loading("Salvando seus dados...");
-    const { error } = await supabase.auth.updateUser({
-      data: { 
-        nome: novoNome,
-        telefone: novoTelefone
-      }
-    });
-
-    if (error) {
-      toast.error("Erro ao atualizar os dados: " + error.message, { id: toastId });
-    } else {
-      setNome(novoNome);
-      setTelefone(novoTelefone);
-      setEditando(false);
-      toast.success("Dados atualizados com sucesso!", { id: toastId });
-    }
-    
-    setSalvando(false);
+  const iniciarEdicao = () => {
+    if (!profile || ocupado || bloqueado) return;
+    saver.reset();
+    setNovoNome(profile.nome);
+    setNovoTelefone(profile.telefone);
+    setEditando(true);
   };
 
-  // Função auxiliar para pegar as iniciais do nome para o Avatar
-  const getIniciais = (nomeCompleto: string) => {
-    if (nomeCompleto === "Carregando..." || nomeCompleto === "Usuário") return "OC";
-    const partes = nomeCompleto.trim().split(" ");
-    if (partes.length === 1) return partes[0].substring(0, 2).toUpperCase();
-    return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
+  const handleSalvarDados = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (profile) await saver.save(profile.id, { nome: novoNome, telefone: novoTelefone });
   };
+
+  if (!ready || !profile) return <section>
+    <h1 className="text-2xl font-extrabold text-zinc-900">Meu Perfil</h1>
+    <LoadFeedback error={error} retry={retry} />
+  </section>;
+
+  const { nome, telefone, email } = profile;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -93,7 +80,7 @@ export default function Perfil() {
             
             {/* Avatar Dinâmico */}
             <div className="w-24 h-24 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-3xl font-black mb-4 ring-4 ring-white shadow-md">
-              {getIniciais(nome)}
+              {profileInitials(nome)}
             </div>
             
             <h2 className="text-xl font-bold text-zinc-900 mb-1">{nome}</h2>
@@ -124,7 +111,13 @@ export default function Perfil() {
             </div>
             
             <div className="p-4 md:p-6">
-              {!editando ? (
+              {saveState.message && <div ref={feedback} tabIndex={-1}
+                role={saveState.status === "success" ? "status" : "alert"}
+                className="mb-4 rounded-xl border border-zinc-300 bg-zinc-50 p-4 text-zinc-900">
+                <p>{saveState.message}</p>
+                {bloqueado && <a href="/perfil" className="mt-3 inline-block font-bold underline">Recarregar perfil</a>}
+              </div>}
+              {!editando || bloqueado ? (
                 /* MODO VISUALIZAÇÃO */
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -144,7 +137,8 @@ export default function Perfil() {
                   
                   <div className="pt-4 border-t border-zinc-100 flex justify-end">
                     <button 
-                      onClick={() => setEditando(true)}
+                      onClick={iniciarEdicao}
+                      disabled={ocupado || bloqueado}
                       className="bg-zinc-900 text-white px-6 py-2.5 rounded-xl hover:bg-zinc-800 transition-colors shadow-sm font-medium"
                     >
                       Editar Dados
@@ -153,28 +147,29 @@ export default function Perfil() {
                 </div>
               ) : (
                 /* MODO EDIÇÃO */
-                <div className="space-y-4 animate-in fade-in">
+                <form onSubmit={handleSalvarDados} aria-busy={salvando} className="space-y-4 animate-in fade-in">
+                  {salvando && <p role="status" className="text-zinc-700">Salvando seus dados...</p>}
                   <div>
-                    <label className="block text-zinc-700 text-sm font-bold mb-2">Nome Completo</label>
+                    <label htmlFor="perfil-nome" className="block text-zinc-700 text-sm font-bold mb-2">Nome Completo</label>
                     <input
-                      type="text"
+                      id="perfil-nome" type="text" autoComplete="name" required
                       className="w-full p-3 border border-zinc-300 rounded-xl text-zinc-900 focus:ring-2 focus:ring-orange-600 outline-none transition-all disabled:bg-zinc-100"
                       value={novoNome}
                       onChange={(e) => setNovoNome(e.target.value)}
                       placeholder="Ex: João da Silva"
-                      disabled={salvando}
+                      disabled={ocupado}
                     />
                   </div>
                   
                   <div>
-                    <label className="block text-zinc-700 text-sm font-bold mb-2">WhatsApp de Contato</label>
+                    <label htmlFor="perfil-telefone" className="block text-zinc-700 text-sm font-bold mb-2">WhatsApp de Contato</label>
                     <input
-                      type="tel"
+                      id="perfil-telefone" type="tel" autoComplete="tel"
                       className="w-full p-3 border border-zinc-300 rounded-xl text-zinc-900 focus:ring-2 focus:ring-orange-600 outline-none transition-all disabled:bg-zinc-100"
                       value={novoTelefone}
                       onChange={(e) => setNovoTelefone(e.target.value)}
                       placeholder="(11) 90000-0000"
-                      disabled={salvando}
+                      disabled={ocupado}
                     />
                     <p className="text-xs text-zinc-500 mt-2">
                       Este número será usado para formatar suas mensagens de orçamento no WhatsApp.
@@ -183,25 +178,27 @@ export default function Perfil() {
 
                   <div className="pt-4 flex gap-2 justify-end">
                     <button 
+                      type="button"
                       onClick={() => {
+                        saver.reset();
                         setEditando(false);
                         setNovoNome(nome);
                         setNovoTelefone(telefone);
                       }}
-                      disabled={salvando}
+                      disabled={ocupado}
                       className="px-6 py-2.5 bg-zinc-100 text-zinc-700 font-bold rounded-xl hover:bg-zinc-200 transition disabled:opacity-50 flex items-center gap-2"
                     >
                       <X size={18} /> Cancelar
                     </button>
                     <button 
-                      onClick={handleSalvarDados}
-                      disabled={salvando}
+                      type="submit"
+                      disabled={ocupado}
                       className="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition disabled:opacity-50 flex items-center gap-2 shadow-sm"
                     >
                       <Save size={18} /> {salvando ? "Salvando..." : "Salvar"}
                     </button>
                   </div>
-                </div>
+                </form>
               )}
             </div>
           </div>
@@ -229,10 +226,11 @@ export default function Perfil() {
               <div className="pt-4 border-t border-zinc-100 flex items-center justify-between">
                 <div>
                   <h4 className="font-bold text-zinc-900 text-sm">Senha de Acesso</h4>
-                  <p className="text-xs text-zinc-500 mt-1">Sua senha é protegida por criptografia de ponta a ponta.</p>
+                  <p className="text-xs text-zinc-500 mt-1">Use uma senha forte e exclusiva para sua conta.</p>
                 </div>
                 <button 
                   onClick={() => router.push('/redefinir-senha')}
+                  disabled={ocupado}
                   className="flex items-center gap-2 bg-orange-50 text-orange-600 px-4 py-2 rounded-lg hover:bg-orange-100 transition-colors font-medium text-sm"
                 >
                   <Key size={16} /> Redefinir

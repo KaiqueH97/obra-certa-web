@@ -35,9 +35,10 @@ de query strings. O contrato foi conferido na implementação instalada de
 
 ## Escopo
 
-Esta etapa trata somente de **solicitar o link**. A confirmação da sessão de
-recuperação e a gravação da nova senha em `/redefinir-senha` precisam de uma etapa
-própria. Configurações de SMTP, Site URL, templates e Redirect URLs não foram
+Esta etapa trata somente de **solicitar o link**. A confirmação da sessão e a
+gravação da nova senha em `/redefinir-senha` estão documentadas na etapa seguinte:
+[Redefinição de senha](./redefinicao-de-senha.md).
+Configurações de SMTP, Site URL, templates e Redirect URLs não foram
 alteradas. A URL de redefinição deve estar permitida no projeto Supabase usado
 pelo aplicativo, como já era necessário antes desta mudança.
 

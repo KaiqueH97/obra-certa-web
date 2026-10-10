@@ -152,10 +152,12 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
           .update({ preco_total: precoFinal }).eq("id", id).eq("projeto_id", projetoId)
           .select("id, nome, quantidade, projeto_id, preco_total").single<Material>(),
         onConfirmed: (material) => setMateriais(prev => prev.map(item => item.id === id ? material : item)),
+        // Também restaura o preço após erro, mas apenas enquanto esta tela estiver ativa.
+        onSettled: () => limparPrecoEditado(id),
       });
+    } else {
+      limparPrecoEditado(id);
     }
-    // Em caso de falha, o campo volta ao último preço confirmado, assim como o total.
-    limparPrecoEditado(id);
   };
 
   const iniciarEdicaoMaterial = (item: Material) => {

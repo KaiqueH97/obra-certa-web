@@ -17,7 +17,10 @@ sucesso. As operações existentes continuam sujeitas às políticas de RLS.
 O executor em `lib/confirmed-mutation.ts`, integrado ao React por
 `app/hooks/useConfirmedMutation.ts`, bloqueia requisições simultâneas para a mesma
 chave, encerra a notificação de carregamento e libera a trava em `finally`.
-Respostas após a desmontagem não executam callbacks de atualização da tela.
+Respostas após a desmontagem não executam callbacks nem recriam notificações.
+Ao sair, o executor encerra a espera local e dispensa os avisos da própria tela
+pelo ID, sem apagar notificações de outras ações. O detalhamento desta correção
+está em [Gravações ao sair da tela](./gravacoes-ao-navegar.md).
 Na troca de obra, o componente recebe uma nova instância de estado.
 
 Formulários são preservados em caso de erro. O campo de preço, salvo ao perder
@@ -32,11 +35,12 @@ entre abas, dispositivos ou novas tentativas.
 
 ## Validação automatizada
 
-Execute `npm run test:mutations`. Os 17 casos testam o executor real, com respostas
+Execute `npm run test:mutations`. São 24 casos do executor real, com respostas
 controladas: confirmação, RLS, zero linhas, retorno nulo ou inválido, falha de rede,
 sessão ausente, clique duplicado, liberação após erro, concorrência entre registros
-e resposta após desmontagem. São testes unitários; não executam o navegador nem
-acessam o Supabase remoto.
+e resposta após desmontagem/reativação. Outros dois testes usam as páginas React
+de projetos e equipe com jsdom para verificar a saída durante a validação da sessão.
+Não acessam o Supabase remoto.
 
 ## Roteiro manual no navegador
 

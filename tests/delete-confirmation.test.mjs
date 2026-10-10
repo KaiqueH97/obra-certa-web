@@ -42,7 +42,7 @@ async function mount(t, config) {
   let authEvent
   let response = { data: { id: 7 }, error: null }
   const toast = Object.assign(() => { throw new Error('Confirmação não pode usar toast global') }, {
-    dismiss: () => { throw new Error('Não deve apagar notificações de outras ações') },
+    dismiss: id => { assert.equal(id, 'mutation', 'Deve dispensar somente o toast da gravação'); notices.push(['dismiss', id]) },
     loading: message => { notices.push(['loading', message]); return 'mutation' },
     success: message => notices.push(['success', message]),
     error: message => notices.push(['error', message]),
@@ -178,5 +178,37 @@ for (const config of cases) {
     assert.equal(ui.requests.length, 0)
     await act(tick)
     assert.deepEqual(ui.destinations, ['/login'])
+  })
+}
+
+for (const config of cases) {
+  for (const lateResponse of [{ data: { id: 7 }, error: null }, { data: null, error: { message: 'offline' } }]) {
+    test(`${config.name}: navegar durante DELETE dispensa aviso e ignora ${lateResponse.error ? 'erro' : 'sucesso'} tardio`, async t => {
+      const ui = await mount(t, config)
+      let resolve
+      ui.setResponse(new Promise(done => { resolve = done }))
+      await ui.open()
+      await act(() => ui.confirm().click())
+      assert.equal(ui.requests.length, 1)
+      await ui.leave()
+      assert.deepEqual(ui.notices.map(item => item[0]), ['loading', 'dismiss'])
+      await act(async () => { resolve(lateResponse); await tick() })
+      assert.deepEqual(ui.notices.map(item => item[0]), ['loading', 'dismiss'])
+      assert.match(document.body.textContent, /Outra página/)
+    })
+  }
+
+  test(`${config.name}: logout desmonta gravação e sucesso tardio não reaparece no login`, async t => {
+    const ui = await mount(t, config)
+    let resolve
+    ui.setResponse(new Promise(done => { resolve = done }))
+    await ui.open()
+    await act(() => ui.confirm().click())
+    await ui.signOut()
+    assert.equal(ui.group(), null)
+    assert.deepEqual(ui.notices.map(item => item[0]), ['loading', 'dismiss'])
+    await act(async () => { resolve({ data: { id: 7 }, error: null }); await tick() })
+    assert.deepEqual(ui.destinations, ['/login'])
+    assert.deepEqual(ui.notices.map(item => item[0]), ['loading', 'dismiss'])
   })
 }

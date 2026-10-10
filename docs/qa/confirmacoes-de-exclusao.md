@@ -33,14 +33,16 @@ associados para tecnologia assistiva. Não é modal e não prende o foco.
 
 ## Validação automatizada
 
-`npm run test:deletions` executa 10 testes com as páginas reais de equipe e obra,
+`npm run test:deletions` executa 16 testes com as páginas reais de equipe e obra,
 o componente de confirmação, o hook/executor de gravação e a proteção de sessão.
 As leituras iniciais, respostas do Supabase, notificações e navegação são simuladas.
 O DOM usa jsdom; estes testes não substituem a conferência visual no navegador.
 
 Cobertura: abertura sem requisição, foco, cancelar/Escape, preservação de outras
 notificações, clique duplicado, bloqueio durante envio, filtros do DELETE, sucesso,
-erro de permissão, navegação, suspensão da página e logout recebido.
+erro de permissão, navegação, suspensão da página e logout recebido. Inclui também
+saída durante DELETE e respostas de sucesso/erro após navegação ou logout,
+conforme a etapa [Gravações ao sair da tela](./gravacoes-ao-navegar.md).
 
 Em 14/09/2026, passaram os 10 testes novos, os 63 testes de regressão de gravações,
 carregamento e sessão, o lint dos arquivos de código alterados, `npx tsc --noEmit`

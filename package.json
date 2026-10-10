@@ -9,7 +9,7 @@
     "lint": "eslint",
     "test:pwa": "node --test tests/pwa-cache.test.mjs",
     "test:rls": "python3 tests/database/test_rls.py",
-    "test:mutations": "node --test tests/confirmed-mutation.test.mjs",
+    "test:mutations": "node --test tests/confirmed-mutation.test.mjs tests/mutation-lifecycle.test.mjs",
     "test:money": "node --test tests/money.test.mjs",
     "test:auth": "node --test tests/auth-proxy.test.mjs",
     "test:auth-actions": "node --test tests/auth-actions.test.mjs",

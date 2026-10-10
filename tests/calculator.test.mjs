@@ -20,7 +20,7 @@ async function mount(t, landing = false) {
   const { createRoot } = await import('react-dom/client')
   const notices = []
   const writes = []
-  const toast = { error: text => notices.push(text), success() {}, loading: () => 'saving' }
+  const toast = { error: text => notices.push(text), success() {}, dismiss() {}, loading: () => 'saving' }
   const actions = loadTs(new URL('../app/hooks/useConfirmedMutation.ts', import.meta.url), { ...base, 'react-hot-toast': { default: toast }, '@/lib/confirmed-mutation': mutations })
   const { default: Page } = loadTs(new URL(landing ? '../app/page.tsx' : '../app/(sistema)/calcular/page.tsx', import.meta.url), {
     ...base, 'lucide-react': icons, 'react-hot-toast': { default: toast },

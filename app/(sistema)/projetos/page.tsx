@@ -43,8 +43,9 @@ export default function Projetos() {
       key: "projetos",
       loading: "Criando obra...",
       success: "Obra criada com sucesso!",
-      request: async () => {
+      request: async signal => {
         const { data: { user }, error } = await supabase.auth.getUser();
+        signal.throwIfAborted();
         if (error || !user) throw new MutationError("Não foi possível validar sua sessão. Entre novamente.");
         return supabase.from("projetos").insert([{ titulo: novoProjeto, user_id: user.id }])
           .select("id, titulo, user_id, criado_em").single<Projeto>();

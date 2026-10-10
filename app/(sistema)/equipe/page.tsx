@@ -53,8 +53,9 @@ export default function EquipePage() {
       key: "equipe",
       loading: "Cadastrando profissional...",
       success: "Profissional cadastrado!",
-      request: async () => {
+      request: async signal => {
         const { data: { user }, error } = await supabase.auth.getUser();
+        signal.throwIfAborted();
         if (error || !user) throw new MutationError("Não foi possível validar sua sessão. Entre novamente.");
         return supabase.from("funcionarios").insert([{
           nome: novoNome, cargo: novoCargo || "Profissional da Obra",

@@ -10,6 +10,7 @@ export function useConfirmedMutation() {
     loading: (message) => toast.loading(message),
     success: (message, id) => { toast.success(message, { id }); },
     error: (message, id) => { toast.error(message, { id }); },
+    dismiss: id => { toast.dismiss(id); },
   }, setPending));
 
   useEffect(() => {

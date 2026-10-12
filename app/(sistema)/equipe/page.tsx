@@ -7,6 +7,7 @@ import { LoadFeedback } from "@/app/components/LoadFeedback";
 import { DeleteConfirmation } from "@/app/components/DeleteConfirmation";
 import { loadAllRows } from "@/lib/load-data";
 import Link from "next/link";
+import { MutationGuard } from "@/app/components/MutationGuard";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
 import { MutationError } from "@/lib/confirmed-mutation";
 import { parseMoney } from "@/lib/money";
@@ -21,7 +22,7 @@ interface Funcionario {
 }
 
 export default function EquipePage() {
-  const { run, isBusy } = useConfirmedMutation();
+  const { run, isBusy, requiresReload } = useConfirmedMutation();
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [excluindoId, setExcluindoId] = useState<number | null>(null);
   const exclusaoTrigger = useRef<HTMLButtonElement | null>(null);
@@ -122,6 +123,7 @@ export default function EquipePage() {
   </section>;
 
   return (
+    <MutationGuard blocked={requiresReload}>
     <div className="space-y-6 animate-in fade-in duration-500">
       
       {/* HEADER */}
@@ -287,5 +289,6 @@ export default function EquipePage() {
 
       </div>
     </div>
+    </MutationGuard>
   );
 }

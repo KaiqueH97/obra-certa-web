@@ -6,6 +6,7 @@ import { useDataLoad } from "@/app/hooks/useDataLoad";
 import { LoadFeedback } from "@/app/components/LoadFeedback";
 import { loadAllRows } from "@/lib/load-data";
 import Link from "next/link";
+import { MutationGuard } from "@/app/components/MutationGuard";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
 import { MutationError } from "@/lib/confirmed-mutation";
 import toast from "react-hot-toast";
@@ -19,7 +20,7 @@ interface Projeto {
 }
 
 export default function Projetos() {
-  const { run, isBusy } = useConfirmedMutation();
+  const { run, isBusy, requiresReload } = useConfirmedMutation();
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [novoProjeto, setNovoProjeto] = useState("");
 
@@ -104,6 +105,7 @@ export default function Projetos() {
   </section>;
 
   return (
+    <MutationGuard blocked={requiresReload}>
     <div className="space-y-6 animate-in fade-in duration-500">
       
       {/* HEADER E FORMULÁRIO DE CRIAÇÃO */}
@@ -272,5 +274,6 @@ export default function Projetos() {
         )}
       </div>
     </div>
+    </MutationGuard>
   );
 }

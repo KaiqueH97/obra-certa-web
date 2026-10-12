@@ -8,6 +8,7 @@ import { LoadFeedback } from "@/app/components/LoadFeedback";
 import { DeleteConfirmation } from "@/app/components/DeleteConfirmation";
 import { loadAllRows, requireData, LoadError } from "@/lib/load-data";
 import Link from "next/link";
+import { MutationGuard } from "@/app/components/MutationGuard";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
 import { parseMoney } from "@/lib/money";
 import toast from "react-hot-toast";
@@ -53,7 +54,7 @@ export default function ProjetoPage() {
 }
 
 function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
-  const { run, isPending } = useConfirmedMutation();
+  const { run, isPending, requiresReload } = useConfirmedMutation();
   const [precosEditados, setPrecosEditados] = useState<Record<number, string>>({});
   const [tituloObra, setTituloObra] = useState("Carregando...");
   const [tarefas, setTarefas] = useState<Tarefa[]>([]);
@@ -302,6 +303,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   </section>;
 
   return (
+    <MutationGuard blocked={requiresReload}>
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       
       {/* HEADER PRINCIPAL */}
@@ -573,5 +575,6 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
         </div>
       )}
     </div>
+    </MutationGuard>
   );
 }

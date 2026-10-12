@@ -6,12 +6,13 @@ import { createMutationRunner } from "@/lib/confirmed-mutation";
 
 export function useConfirmedMutation() {
   const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set());
+  const [requiresReload, setRequiresReload] = useState(false);
   const [runner] = useState(() => createMutationRunner({
     loading: (message) => toast.loading(message),
     success: (message, id) => { toast.success(message, { id }); },
     error: (message, id) => { toast.error(message, { id }); },
     dismiss: id => { toast.dismiss(id); },
-  }, setPending));
+  }, setPending, () => setRequiresReload(true)));
 
   useEffect(() => {
     runner.activate();
@@ -20,6 +21,7 @@ export function useConfirmedMutation() {
 
   return {
     run: runner.run,
+    requiresReload,
     isPending: (key: string) => pending.has(key),
     isBusy: pending.size > 0,
   };

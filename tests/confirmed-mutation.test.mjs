@@ -9,7 +9,7 @@ const { outputText } = ts.transpileModule(
   readFileSync(new URL("../lib/confirmed-mutation.ts", import.meta.url), "utf8"),
   { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } },
 );
-vm.runInNewContext(outputText, { exports, AbortController });
+vm.runInNewContext(outputText, { exports, AbortController, setTimeout, clearTimeout });
 const { createMutationRunner, MutationError, UNCONFIRMED_MESSAGE } = exports;
 
 function deferred() {
@@ -19,7 +19,8 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-function fixture() {
+function fixture(timeoutMs = 1000) {
+  const unconfirmed = [];
   const notices = [];
   const pending = [];
   const confirmed = [];
@@ -32,12 +33,12 @@ function fixture() {
     success(message, id) { notices.push({ type: "success", message, id }); },
     error(message, id) { notices.push({ type: "error", message, id }); },
     dismiss(id) { notices.push({ type: "dismiss", id }); },
-  }, (keys) => pending.push([...keys]));
+  }, (keys) => pending.push([...keys]), () => unconfirmed.push(true), timeoutMs);
   const options = (request, key = "material-1") => ({
     key, request, loading: "Salvando...", success: "Salvo!",
     onConfirmed: (record) => confirmed.push(record),
   });
-  return { runner, notices, pending, confirmed, options };
+  return { runner, notices, pending, confirmed, options, unconfirmed };
 }
 
 test("o registro e o total só mudam após a confirmação, usando o valor do banco", async () => {
@@ -124,9 +125,9 @@ test("dois cliques no mesmo registro enviam uma única requisição", async () =
   assert.equal(f.notices.length, 2);
 });
 
-test("a falha libera a trava para uma tentativa posterior", async () => {
+test("rejeição de permissão libera a trava para uma tentativa posterior", async () => {
   const f = fixture();
-  await f.runner.run(f.options(async () => ({ data: null, error: { message: "failed" } })));
+  await f.runner.run(f.options(async () => ({ data: null, error: { code: "42501", message: "denied" } })));
   await f.runner.run(f.options(async () => ({ data: { id: 1 }, error: null })));
   assert.equal(f.confirmed.length, 1);
   assert.deepEqual(f.pending.at(-1), []);
@@ -175,25 +176,21 @@ test("erro tardio após sair não cria aviso na tela seguinte", async () => {
   assert.deepEqual(f.notices.map(n => n.type), ["loading", "dismiss"]);
 });
 
-test("reativação não permite que resposta anterior limpe a trava da nova operação", async () => {
-  const f = fixture(), old = deferred(), next = deferred();
+test("reativação mantém bloqueio após abandonar operação pendente", async () => {
+  const f = fixture(), old = deferred();
   const first = f.runner.run(f.options(() => old.promise));
   f.runner.deactivate();
   f.runner.activate();
-  const second = f.runner.run(f.options(() => next.promise));
   await first;
+  let sent = false;
+  await f.runner.run(f.options(() => { sent = true; }, "outra-chave"));
   old.resolve({ data: { id: "antigo" }, error: null });
   await Promise.resolve();
-  assert.deepEqual(f.pending.at(-1), ["material-1"]);
+  assert.equal(sent, false);
   assert.equal(f.confirmed.length, 0);
-  let duplicated = false;
-  await f.runner.run(f.options(() => { duplicated = true; }));
-  assert.equal(duplicated, false);
-  next.resolve({ data: { id: "novo" }, error: null });
-  await second;
-  assert.deepEqual(f.confirmed.map(row => row.id), ["novo"]);
+  assert.equal(f.unconfirmed.length, 1);
   assert.deepEqual(f.pending.at(-1), []);
-  assert.deepEqual(f.notices.map(n => n.type), ["loading", "dismiss", "loading", "success"]);
+  assert.deepEqual(f.notices.map(n => n.type), ["loading", "dismiss"]);
 });
 
 test("cleanup sinaliza cancelamento e não deixa validação atrasada iniciar gravação", async () => {
@@ -252,4 +249,94 @@ test("restaura campo após sucesso ou erro somente enquanto a operação pertenc
   delayed.resolve({ data: { id: 1 }, error: null });
   await Promise.resolve();
   assert.equal(restored, 0);
+});
+
+test("timeout encerra espera, bloqueia qualquer chave e ignora sucesso tardio", async () => {
+  const f = fixture(10), response = deferred();
+  let signal, settled = 0;
+  const result = await f.runner.run({ ...f.options(value => { signal = value; return response.promise; }), onSettled: () => { settled++; } });
+  assert.equal(result, null);
+  assert.equal(signal.aborted, true);
+  assert.equal(settled, 1);
+  assert.deepEqual(f.pending.at(-1), []);
+  assert.equal(f.unconfirmed.length, 1);
+  assert.equal(f.notices.at(-1).message, UNCONFIRMED_MESSAGE);
+  let sent = 0;
+  for (const key of ["material-1", "outro-registro"]) await f.runner.run(f.options(() => { sent++; }, key));
+  assert.equal(sent, 0);
+  const notices = f.notices.length;
+  response.resolve({ data: { id: 1 }, error: null });
+  await Promise.resolve();
+  assert.equal(f.confirmed.length, 0);
+  assert.equal(f.notices.length, notices);
+});
+
+test("timeout durante validação impede INSERT quando sessão chega atrasada", async () => {
+  const f = fixture(10), auth = deferred();
+  let sent = false;
+  await f.runner.run(f.options(async signal => {
+    await auth.promise;
+    signal.throwIfAborted();
+    sent = true;
+    return { data: { id: 1 }, error: null };
+  }));
+  auth.resolve();
+  await Promise.resolve();
+  assert.equal(sent, false);
+  assert.equal(f.unconfirmed.length, 1);
+});
+
+for (const response of [null, { data: { id: 1 } }, { data: null, error: null }, { data: null, error: { code: "PGRST116", message: "representation failed" } }, { data: null, error: { message: "server error" } }]) {
+  test(`resposta inconclusiva bloqueia reenvio manual: ${JSON.stringify(response)}`, async () => {
+    const f = fixture();
+    let sent = 0;
+    const request = async () => { sent++; return response; };
+    await f.runner.run(f.options(request));
+    await f.runner.run(f.options(request));
+    assert.equal(sent, 1);
+    assert.equal(f.confirmed.length, 0);
+    assert.equal(f.unconfirmed.length, 1);
+  });
+}
+
+test("exceção de rede bloqueia novas gravações sem repetição automática", async () => {
+  const f = fixture();
+  let sent = 0;
+  const request = async () => { sent++; throw new TypeError("Failed to fetch"); };
+  await f.runner.run(f.options(request));
+  await f.runner.run(f.options(request, "outra-chave"));
+  assert.equal(sent, 1);
+  assert.equal(f.unconfirmed.length, 1);
+});
+
+test("falha ao aplicar resposta confirmada exige recarregar para não repetir gravação", async () => {
+  const f = fixture();
+  await f.runner.run({ ...f.options(async () => ({ data: { id: 1 }, error: null })), onConfirmed() { throw new MutationError("Falha local"); } });
+  assert.equal(f.unconfirmed.length, 1);
+  assert.equal(f.notices.at(-1).message, UNCONFIRMED_MESSAGE);
+});
+
+test("sucesso de outra operação já enviada não remove bloqueio da primeira", async () => {
+  const f = fixture(), a = deferred(), b = deferred();
+  const first = f.runner.run(f.options(() => a.promise, "a"));
+  const second = f.runner.run(f.options(() => b.promise, "b"));
+  a.reject(new Error("offline"));
+  await first;
+  b.resolve({ data: { id: 2 }, error: null });
+  await second;
+  assert.equal(f.unconfirmed.length, 1);
+  assert.deepEqual(f.confirmed.map(row => row.id), [2]);
+  let sent = false;
+  await f.runner.run(f.options(() => { sent = true; }));
+  assert.equal(sent, false);
+});
+
+test("cancelar a espera remove prazo pendente sem alertas depois da saída", async () => {
+  const f = fixture(10);
+  const task = f.runner.run(f.options(() => new Promise(() => {})));
+  f.runner.deactivate();
+  await task;
+  await new Promise(resolve => setTimeout(resolve, 25));
+  assert.equal(f.unconfirmed.length, 0);
+  assert.deepEqual(f.notices.map(n => n.type), ["loading", "dismiss"]);
 });

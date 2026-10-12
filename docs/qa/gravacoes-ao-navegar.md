@@ -40,20 +40,20 @@ REST já iniciadas podem ser processadas e seus retornos são ignorados na inter
 Ao voltar, confira os registros carregados antes de repetir uma ação sem confirmação.
 Não há reenvio automático nem garantia de idempotência entre telas, abas ou dispositivos.
 
-Esta etapa trata da saída/desmontagem da página. Não adiciona timeout enquanto
-ela permanece montada, nem muda a política de tentativas após erro. Uma aba apenas
+A proteção de saída é complementada pelo [limite de espera e tratamento de
+resultado incerto](./limite-de-gravacoes.md), que também atua com a página aberta. Uma aba apenas
 oculta pode manter a instância montada; ocultação não equivale a cancelamento.
 A proteção de sessão existente desmonta o conteúdo quando identifica logout ou
-mudança de conta. Uma instância reativada começa com as travas locais limpas;
+mudança de conta. Uma instância reativada após abandonar uma gravação exige recarregar os dados;
 respostas anteriores continuam invalidadas, mas o trabalho no servidor pode seguir.
 
 Nenhum SQL, migration, pacote ou variável de ambiente é necessário.
 
 ## Validação automatizada
 
-- `npm run test:mutations`: 24 testes do executor e dois testes React dos cadastros
+- `npm run test:mutations`: 35 testes do executor e quatro testes React dos cadastros
   de projetos/equipe, inclusive com Strict Mode.
-- `npm run test:deletions`: 16 testes das páginas de equipe e obra, usando o hook,
+- `npm run test:deletions`: 18 testes das páginas de equipe e obra, usando o hook,
   executor, confirmação de exclusão e proteção de sessão reais com jsdom.
 - Os testes da calculadora e da proteção de sessão conferem os demais fluxos
   relacionados. Respostas do Supabase, navegação e notificações são simuladas.

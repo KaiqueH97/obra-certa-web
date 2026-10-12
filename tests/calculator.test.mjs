@@ -11,8 +11,9 @@ const base = { react: React, 'react/jsx-runtime': jsx }
 const money = loadTs(new URL('../lib/money.ts', import.meta.url))
 const calculation = loadTs(new URL('../lib/material-calculation.ts', import.meta.url), { './money': money })
 const mutations = loadTs(new URL('../lib/confirmed-mutation.ts', import.meta.url))
+const guard = loadTs(new URL('../app/components/MutationGuard.tsx', import.meta.url), { ...base, '@/lib/confirmed-mutation': { ...mutations, createMutationRunner: (notices, onPending, onUnconfirmed) => mutations.createMutationRunner(notices, onPending, onUnconfirmed, timeoutMs) } })
 
-async function mount(t, landing = false) {
+async function mount(t, landing = false, saveResponse = { data: { id: 1 }, error: null }, timeoutMs = 20000) {
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://app.example/calcular' })
   globalThis.window = dom.window
   globalThis.document = dom.window.document
@@ -21,21 +22,21 @@ async function mount(t, landing = false) {
   const notices = []
   const writes = []
   const toast = { error: text => notices.push(text), success() {}, dismiss() {}, loading: () => 'saving' }
-  const actions = loadTs(new URL('../app/hooks/useConfirmedMutation.ts', import.meta.url), { ...base, 'react-hot-toast': { default: toast }, '@/lib/confirmed-mutation': mutations })
+  const actions = loadTs(new URL('../app/hooks/useConfirmedMutation.ts', import.meta.url), { ...base, 'react-hot-toast': { default: toast }, '@/lib/confirmed-mutation': { ...mutations, createMutationRunner: (notices, onPending, onUnconfirmed) => mutations.createMutationRunner(notices, onPending, onUnconfirmed, timeoutMs) } })
   const { default: Page } = loadTs(new URL(landing ? '../app/page.tsx' : '../app/(sistema)/calcular/page.tsx', import.meta.url), {
     ...base, 'lucide-react': icons, 'react-hot-toast': { default: toast },
     'next/link': { default: props => h('a', props) },
     '@/lib/material-calculation': calculation,
     '@/lib/load-data': {},
     '@/app/components/LoadFeedback': {},
-    '@/app/hooks/useConfirmedMutation': actions,
+    '@/app/hooks/useConfirmedMutation': actions, '@/app/components/MutationGuard': guard,
     '@/app/hooks/useDataLoad': { useDataLoad: function useFixture(load, apply) {
       React.useEffect(() => { apply([{ id: 42, titulo: 'Obra A' }]) }, [apply])
       return { ready: true }
     } },
     '@/lib/supabase': { supabase: { from: table => ({ insert: rows => {
       writes.push({ table, rows })
-      return { select: () => ({ single: async () => ({ data: { id: 1 }, error: null }) }) }
+      return { select: () => ({ single: async () => saveResponse }) }
     } }) } },
   })
   const root = createRoot(document.getElementById('root'))
@@ -116,4 +117,25 @@ test('simulação pública aceita vírgula e não mostra quantidades calculadas 
   await ui.fill('simulacao-largura', '-4'); await ui.fill('simulacao-altura', '-3')
   assert.match(document.body.textContent, /— m²/)
   assert.match(document.querySelector('[role="status"]').textContent, /maiores que zero/)
+})
+
+test('calculadora preserva estimativa e bloqueia outro salvamento após timeout', async t => {
+  let resolve
+  const ui = await mount(t, false, new Promise(done => { resolve = done }), 10)
+  await ui.prepare()
+  await ui.submit()
+  await ui.fill('projeto-calculo', '42')
+  const save = () => [...document.querySelectorAll('button')].find(button => button.textContent.includes('Salvar Material na Obra'))
+  await act(async () => { save().click(); await new Promise(done => setTimeout(done, 30)) })
+  assert.equal(ui.writes.length, 1)
+  assert.ok(document.getElementById('projeto-calculo'))
+  assert.equal(save().matches(':disabled'), true)
+  assert.equal(document.getElementById('superficie').matches(':disabled'), true)
+  const alert = document.querySelector('[role="alert"]')
+  assert.equal(document.activeElement, alert)
+  assert.equal(alert.querySelector('button').matches(':disabled'), false)
+  await act(() => { resolve({ data: { id: 1 }, error: null }) })
+  assert.ok(document.getElementById('projeto-calculo'))
+  assert.equal(save().matches(':disabled'), true)
+  assert.equal(ui.writes.length, 1)
 })

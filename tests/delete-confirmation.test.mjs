@@ -11,6 +11,7 @@ const { act, createElement: h } = React
 const tick = () => new Promise(resolve => setTimeout(resolve, 20))
 const base = { react: React, 'react/jsx-runtime': jsx }
 const mutation = loadTs(new URL('../lib/confirmed-mutation.ts', import.meta.url))
+const guard = loadTs(new URL('../app/components/MutationGuard.tsx', import.meta.url), { ...base, '@/lib/confirmed-mutation': mutation })
 const loads = loadTs(new URL('../lib/load-data.ts', import.meta.url))
 const money = loadTs(new URL('../lib/money.ts', import.meta.url))
 const confirmation = loadTs(new URL('../app/components/DeleteConfirmation.tsx', import.meta.url), base)
@@ -31,7 +32,7 @@ const cases = [
   } },
 ]
 
-async function mount(t, config) {
+async function mount(t, config, timeoutMs = 20000) {
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://app.example/home', pretendToBeVisual: true })
   globalThis.window = dom.window
   globalThis.document = dom.window.document
@@ -64,14 +65,14 @@ async function mount(t, config) {
     },
   }
   const actions = loadTs(new URL('../app/hooks/useConfirmedMutation.ts', import.meta.url), {
-    ...base, '@/lib/confirmed-mutation': mutation, 'react-hot-toast': { default: toast },
+    ...base, '@/lib/confirmed-mutation': { ...mutation, createMutationRunner: (notices, onPending, onUnconfirmed) => mutation.createMutationRunner(notices, onPending, onUnconfirmed, timeoutMs) }, 'react-hot-toast': { default: toast },
   })
   const { default: Page } = loadTs(new URL(config.file, import.meta.url), {
     ...base, 'react-hot-toast': { default: toast }, 'lucide-react': icons,
     'next/link': { default: props => h('a', props) },
     'next/navigation': { useParams: () => ({ id: '42' }) },
     '@/lib/supabase': { supabase }, '@/lib/load-data': loads, '@/lib/money': money,
-    '@/lib/confirmed-mutation': mutation, '@/app/hooks/useConfirmedMutation': actions,
+    '@/lib/confirmed-mutation': mutation, '@/app/hooks/useConfirmedMutation': actions, '@/app/components/MutationGuard': guard,
     '@/app/components/DeleteConfirmation': confirmation, '@/app/components/LoadFeedback': feedback,
     '@/app/hooks/useDataLoad': { useDataLoad: function useFakeDataLoad(load, apply) {
       React.useEffect(() => { apply(config.data) }, [apply])
@@ -210,5 +211,30 @@ for (const config of cases) {
     await act(async () => { resolve({ data: { id: 7 }, error: null }); await tick() })
     assert.deepEqual(ui.destinations, ['/login'])
     assert.deepEqual(ui.notices.map(item => item[0]), ['loading', 'dismiss'])
+  })
+}
+
+for (const config of cases) {
+  test(`${config.name}: timeout bloqueia controles, mantém registro e oferece recarregar com foco`, async t => {
+    const ui = await mount(t, config, 10)
+    let resolve
+    ui.setResponse(new Promise(done => { resolve = done }))
+    await ui.open()
+    await act(async () => { ui.confirm().click(); await new Promise(done => setTimeout(done, 30)) })
+    assert.equal(ui.requests.length, 1)
+    assert.ok(ui.trigger())
+    assert.equal(ui.confirm().matches(':disabled'), true)
+    const alert = document.querySelector('[role="alert"]')
+    assert.match(alert.textContent, /pode ter sido concluída/)
+    assert.equal(document.activeElement, alert)
+    assert.equal(alert.querySelector('button').matches(':disabled'), false)
+    assert.equal(alert.querySelector('button').textContent.trim(), 'Recarregar dados')
+    assert.deepEqual(ui.notices.map(item => item[0]), ['loading', 'error'])
+    await act(() => ui.confirm().dispatchEvent(new window.MouseEvent('click', { bubbles: true })))
+    assert.equal(ui.requests.length, 1)
+    await act(async () => { resolve({ data: { id: 7 }, error: null }); await tick() })
+    assert.ok(ui.trigger())
+    assert.equal(ui.confirm().matches(':disabled'), true)
+    assert.deepEqual(ui.notices.map(item => item[0]), ['loading', 'error'])
   })
 }

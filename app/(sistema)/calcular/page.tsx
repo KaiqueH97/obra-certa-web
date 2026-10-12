@@ -6,6 +6,7 @@ import { useDataLoad } from "@/app/hooks/useDataLoad";
 import { LoadFeedback } from "@/app/components/LoadFeedback";
 import { loadAllRows } from "@/lib/load-data";
 import toast from "react-hot-toast";
+import { MutationGuard } from "@/app/components/MutationGuard";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
 import { calculateMaterial, type MaterialEstimate } from "@/lib/material-calculation";
 import { Calculator, Plus, X, Building2, Save, Ruler, CheckCircle2, DollarSign } from "lucide-react";
@@ -54,7 +55,7 @@ const OPCOES_MATERIAIS: Record<string, { nome: string; tipos: string[] }> = {
 };
 
 export default function Calculadora() {
-  const { run, isBusy: salvando } = useConfirmedMutation();
+  const { run, isBusy: salvando, requiresReload } = useConfirmedMutation();
   const [superficie, setSuperficie] = useState("");
   const [material, setMaterial] = useState("");
   const [medidas, setMedidas] = useState([{ id: 1, altura: "", largura: "" }]);  
@@ -129,6 +130,7 @@ export default function Calculadora() {
   };
 
   return (
+    <MutationGuard blocked={requiresReload}>
     <div className="space-y-6 animate-in fade-in duration-500">
       
       {/* HEADER */}
@@ -415,5 +417,6 @@ export default function Calculadora() {
 
       </div>
     </div>
+    </MutationGuard>
   );
 }

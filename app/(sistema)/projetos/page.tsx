@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase"; // Ajustado para o atalho correto da raiz
 import { useDataLoad } from "@/app/hooks/useDataLoad";
 import { LoadFeedback } from "@/app/components/LoadFeedback";
-import { loadAllRows } from "@/lib/load-data";
+import { loadProjectPage, lastProjectPage, PROJECT_PAGE_SIZE, type Projeto, type ProjectPage } from "@/lib/project-pagination";
 import Link from "next/link";
 import { MutationGuard } from "@/app/components/MutationGuard";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
@@ -12,34 +12,56 @@ import { MutationError } from "@/lib/confirmed-mutation";
 import toast from "react-hot-toast";
 import { Building2, Calendar, MapPin, ArrowRight, Edit2, Trash2, Plus, X, Save } from "lucide-react";
 
-interface Projeto {
-  id: number;
-  titulo: string;
-  user_id: string;
-  criado_em: string;
-}
-
 export default function Projetos() {
   const { run, isBusy, requiresReload } = useConfirmedMutation();
-  const [projetos, setProjetos] = useState<Projeto[]>([]);
+  const [pagina, setPagina] = useState(0);
+  const [revision, setRevision] = useState(0);
+  const [result, setResult] = useState<(ProjectPage & { revision: number }) | null>(null);
   const [novoProjeto, setNovoProjeto] = useState("");
-
-
+  const listHeading = useRef<HTMLHeadingElement>(null);
+  const focusAfterLoad = useRef(false);
   const [projetoEditando, setProjetoEditando] = useState<number | null>(null);
   const [tituloEditado, setTituloEditado] = useState("");
   
   const [projetoConfirmarExclusao, setProjetoConfirmarExclusao] = useState<number | null>(null);
 
-  const buscarProjetos = useCallback((signal: AbortSignal) => loadAllRows<Projeto>(
-    (from, to) => supabase.from("projetos").select("id, titulo, user_id, criado_em", { count: "exact" })
-      .order("criado_em", { ascending: false }).order("id", { ascending: false }).range(from, to).abortSignal(signal), signal,
-  ), []);
-  const { loading, ready, error, retry } = useDataLoad(buscarProjetos, setProjetos);
+  const buscarProjetos = useCallback(async (signal: AbortSignal) => ({
+    ...await loadProjectPage(
+      (from, to) => supabase.from("projetos").select("id, titulo, user_id, criado_em", { count: "exact" })
+        .order("criado_em", { ascending: false }).order("id", { ascending: false }).range(from, to).abortSignal(signal),
+      pagina, signal,
+    ),
+    revision,
+  }), [pagina, revision]);
+  const aplicarPagina = useCallback((value: ProjectPage & { revision: number }) => {
+    setResult(value);
+    setPagina(Math.min(value.page, lastProjectPage(value.total)));
+  }, []);
+  const { loading, ready: loaded, error, retry } = useDataLoad(buscarProjetos, aplicarPagina);
+  // Bloqueia dados antigos já no render da troca, antes de o efeito iniciar a leitura.
+  const ready = loaded && result?.page === pagina && result.revision === revision;
+  const projetos = result?.rows ?? [];
+  const total = result?.total ?? 0;
   const carregando = loading || isBusy;
+  const ultimaPagina = lastProjectPage(total);
+  const temFormularioAberto = projetoEditando !== null || projetoConfirmarExclusao !== null;
+
+  useEffect(() => {
+    if (ready && focusAfterLoad.current) {
+      listHeading.current?.focus();
+      focusAfterLoad.current = false;
+    }
+  }, [ready]);
+
+  const atualizarLista = (page: number) => {
+    focusAfterLoad.current = true;
+    setPagina(page);
+    setRevision(value => value + 1);
+  };
 
   const criarProjeto = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!novoProjeto.trim()) return;
+    if (!ready || carregando || temFormularioAberto || requiresReload || !novoProjeto.trim()) return;
     await run({
       key: "projetos",
       loading: "Criando obra...",
@@ -51,9 +73,9 @@ export default function Projetos() {
         return supabase.from("projetos").insert([{ titulo: novoProjeto, user_id: user.id }])
           .select("id, titulo, user_id, criado_em").single<Projeto>();
       },
-      onConfirmed: (projeto) => {
-        setProjetos(prev => [projeto, ...prev]);
+      onConfirmed: () => {
         setNovoProjeto("");
+        atualizarLista(0);
       },
     });
   };
@@ -73,7 +95,7 @@ export default function Projetos() {
       request: () => supabase.from("projetos").update({ titulo: tituloEditado }).eq("id", id)
         .select("id, titulo, user_id, criado_em").single<Projeto>(),
       onConfirmed: (projeto) => {
-        setProjetos(prev => prev.map(p => p.id === id ? projeto : p));
+        setResult(prev => prev && ({ ...prev, rows: prev.rows.map(p => p.id === id ? projeto : p) }));
         setProjetoEditando(null);
       },
     });
@@ -86,9 +108,9 @@ export default function Projetos() {
       success: "Obra excluída com sucesso!",
       request: () => supabase.from("projetos").delete().eq("id", id)
         .select("id").single<{ id: number }>(),
-      onConfirmed: (projeto) => {
-        setProjetos(prev => prev.filter(p => p.id !== projeto.id));
+      onConfirmed: () => {
         setProjetoConfirmarExclusao(null);
+        atualizarLista(Math.min(pagina, lastProjectPage(Math.max(0, total - 1))));
       },
     });
   };
@@ -116,17 +138,20 @@ export default function Projetos() {
         </div>
         
         <form onSubmit={criarProjeto} className="flex w-full md:w-auto gap-2">
+          <label htmlFor="nova-obra" className="sr-only">Nome da nova obra</label>
           <input
+            id="nova-obra"
             type="text"
             className="flex-1 md:w-72 p-3 border border-zinc-300 rounded-xl text-zinc-900 outline-none focus:ring-2 focus:ring-orange-500 placeholder-zinc-400 transition-all disabled:opacity-50"
             placeholder="Ex: Reforma da Cozinha..."
             value={novoProjeto}
             onChange={(e) => setNovoProjeto(e.target.value)}
-            disabled={carregando}
+            disabled={carregando || temFormularioAberto}
           />
           <button
             type="submit"
-            disabled={carregando || !novoProjeto.trim()}
+            aria-label="Criar obra"
+            disabled={carregando || temFormularioAberto || !novoProjeto.trim()}
             className="bg-zinc-900 text-white px-5 py-3 rounded-xl hover:bg-zinc-800 transition-colors shadow-sm font-bold disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <Plus size={20} />
@@ -137,6 +162,9 @@ export default function Projetos() {
 
       {/* ÁREA DE DADOS RESPONSIVA */}
       <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+        <h2 ref={listHeading} tabIndex={-1} className="p-4 font-bold text-zinc-900">
+          Obras cadastradas — página {pagina + 1} de {ultimaPagina + 1}
+        </h2>
         
         {/* CABEÇALHO DA TABELA (Exclusivo Desktop) */}
         <div className="hidden md:grid grid-cols-12 gap-4 p-4 bg-zinc-50 border-b border-zinc-100 text-xs uppercase font-semibold text-zinc-500">
@@ -244,14 +272,14 @@ export default function Projetos() {
                       {/* Botões visíveis no mobile e desktop */}
                       <div className="flex items-center gap-2 w-full md:w-auto">
                         <button 
-                          disabled={carregando} onClick={() => iniciarEdicao(projeto)}
+                          disabled={carregando || temFormularioAberto} onClick={() => iniciarEdicao(projeto)}
                           className="p-2 text-zinc-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
                           title="Editar"
                         >
                           <Edit2 size={18} />
                         </button>
                         <button 
-                          disabled={carregando} onClick={() => setProjetoConfirmarExclusao(projeto.id)}
+                          disabled={carregando || temFormularioAberto} onClick={() => setProjetoConfirmarExclusao(projeto.id)}
                           className="p-2 text-zinc-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
                           title="Excluir"
                         >
@@ -273,6 +301,19 @@ export default function Projetos() {
           </div>
         )}
       </div>
+      <nav aria-label="Paginação das obras" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white p-4">
+        <p className="text-sm text-zinc-700" role="status">
+          {total === 0 ? "0 obras" : `${pagina * PROJECT_PAGE_SIZE + 1}–${pagina * PROJECT_PAGE_SIZE + projetos.length} de ${total} obras`}
+        </p>
+        <div className="flex gap-2">
+          <button type="button" disabled={carregando || pagina === 0 || temFormularioAberto}
+            onClick={() => { focusAfterLoad.current = true; setPagina(pagina - 1); }}
+            className="rounded-lg bg-zinc-900 px-4 py-3 font-bold text-white disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900">Anterior</button>
+          <button type="button" disabled={carregando || pagina >= ultimaPagina || temFormularioAberto}
+            onClick={() => { focusAfterLoad.current = true; setPagina(pagina + 1); }}
+            className="rounded-lg bg-zinc-900 px-4 py-3 font-bold text-white disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900">Próxima</button>
+        </div>
+      </nav>
     </div>
     </MutationGuard>
   );

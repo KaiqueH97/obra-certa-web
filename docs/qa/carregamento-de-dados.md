@@ -28,7 +28,8 @@ confirmada; mensagens de carregamento/erro aparecem na área de vincular o resul
 - Uma nova tentativa ou desmontagem aborta as consultas REST anteriores.
 - Há um limite de 20 segundos para o carregamento completo. Se excedido, a tela
   sai do carregamento e permite tentar novamente.
-- Não há repetição automática, nem recarga completa após gravações confirmadas.
+- Não há repetição automática de gravações. Na lista paginada de obras, criação
+  e exclusão confirmadas buscam novamente apenas a página necessária e sua contagem.
 - `getUser()` não recebe o sinal de cancelamento REST; seu resultado tardio é
   ignorado pelo controlador, sem manter a interface bloqueada.
 
@@ -51,7 +52,10 @@ exigiria agregação/consulta específica no servidor.
 No dashboard, a [etapa de resumo no banco](./resumo-dashboard.md) substitui a leitura
 das listas por uma RPC com agregações e quatro projetos recentes.
 
-Nas demais telas, esta é paginação de leitura, sem novos controles de páginas na interface. Todos
+Na lista de projetos, a [paginação de obras](./paginacao-de-obras.md) passa a buscar
+20 registros por página, com controles na interface.
+
+Nas demais listas, esta é paginação de leitura, sem controles de páginas na interface. Todos
 os registros ainda ficam na memória do cliente. Agregações no banco e paginação
 visual continuam sendo melhorias futuras para bases grandes. Uma base que não
 termine de carregar em 20 segundos apresentará erro, sem totais parciais.

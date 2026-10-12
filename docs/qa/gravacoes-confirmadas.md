@@ -27,8 +27,9 @@ Na troca de obra, o componente recebe uma nova instância de estado.
 
 Formulários são preservados em caso de erro. O campo de preço, salvo ao perder
 o foco, volta ao último valor confirmado; os totais continuam refletindo esse valor.
-As listas são atualizadas com a resposta da gravação, sem recarregar todos os dados
-da tela após cada alteração.
+As edições usam a resposta da gravação. Na [lista paginada de obras](./paginacao-de-obras.md),
+criação e exclusão confirmadas recarregam a página necessária para atualizar a
+contagem e preencher a lista. As demais listas continuam com atualização local.
 
 Não há repetição automática: se a conexão cair depois de o servidor persistir
 uma inserção, o resultado pode ficar incerto para o cliente. A mensagem orienta

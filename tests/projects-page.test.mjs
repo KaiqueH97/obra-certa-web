@@ -8,7 +8,8 @@ import { loadTs } from './helpers/load-ts.mjs'
 const { act, createElement: h } = React
 const base = { react: React, 'react/jsx-runtime': jsx }
 const loads = loadTs(new URL('../lib/load-data.ts', import.meta.url))
-const pagination = loadTs(new URL('../lib/project-pagination.ts', import.meta.url), { './load-data': loads })
+const pages = loadTs(new URL('../lib/pagination.ts', import.meta.url), { './load-data': loads })
+const pagination = loadTs(new URL('../lib/project-pagination.ts', import.meta.url), { './pagination': pages })
 const mutation = loadTs(new URL('../lib/confirmed-mutation.ts', import.meta.url))
 const hooks = loadTs(new URL('../app/hooks/useDataLoad.ts', import.meta.url), { ...base, '@/lib/load-data': loads })
 const feedback = loadTs(new URL('../app/components/LoadFeedback.tsx', import.meta.url), base)

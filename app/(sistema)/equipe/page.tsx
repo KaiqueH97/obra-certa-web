@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useDataLoad } from "@/app/hooks/useDataLoad";
 import { LoadFeedback } from "@/app/components/LoadFeedback";
 import { DeleteConfirmation } from "@/app/components/DeleteConfirmation";
-import { loadAllRows } from "@/lib/load-data";
+import { loadPage, lastPage, PAGE_SIZE, type PaginatedRows } from "@/lib/pagination";
 import Link from "next/link";
 import { MutationGuard } from "@/app/components/MutationGuard";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
@@ -17,15 +17,22 @@ import { Users, HardHat, DollarSign, Plus, Trash2, Edit2, X, Save, ArrowLeft } f
 interface Funcionario {
   id: number;
   nome: string;
-  cargo: string;
-  valor_diaria: number;
+  cargo: string | null;
+  valor_diaria: number | null;
 }
+
+type TeamPage = PaginatedRows<Funcionario> & { revision: number };
 
 export default function EquipePage() {
   const { run, isBusy, requiresReload } = useConfirmedMutation();
-  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
+  const [pagina, setPagina] = useState(0);
+  const [revision, setRevision] = useState(0);
+  const [result, setResult] = useState<TeamPage | null>(null);
+  const listHeading = useRef<HTMLHeadingElement>(null);
+  const focusAfterLoad = useRef(false);
   const [excluindoId, setExcluindoId] = useState<number | null>(null);
   const exclusaoTrigger = useRef<HTMLButtonElement | null>(null);
+  const restoreDeleteFocus = useRef(false);
   
   // Estados do formulário de criação
   const [novoNome, setNovoNome] = useState("");
@@ -39,14 +46,46 @@ export default function EquipePage() {
   const [editCargo, setEditCargo] = useState("");
   const [editDiaria, setEditDiaria] = useState("");
 
-  const carregarEquipe = useCallback((signal: AbortSignal) => loadAllRows<Funcionario>(
-    (from, to) => supabase.from("funcionarios").select("id, nome, cargo, valor_diaria", { count: "exact" })
-      .order("criado_em", { ascending: false }).order("id", { ascending: false }).range(from, to).abortSignal(signal), signal,
-  ), []);
-  const { loading: carregando, ready, error, retry } = useDataLoad(carregarEquipe, setFuncionarios);
+  const carregarEquipe = useCallback(async (signal: AbortSignal): Promise<TeamPage> => ({
+    ...await loadPage<Funcionario>(
+      (from, to) => supabase.from("funcionarios").select("id, nome, cargo, valor_diaria", { count: "exact" })
+        .order("criado_em", { ascending: false }).order("id", { ascending: false }).range(from, to).abortSignal(signal),
+      pagina, signal,
+    ),
+    revision,
+  }), [pagina, revision]);
+  const aplicarPagina = useCallback((value: TeamPage) => {
+    setResult(value);
+    setPagina(Math.min(value.page, lastPage(value.total)));
+  }, []);
+  const { loading: carregando, ready: loaded, error, retry } = useDataLoad(carregarEquipe, aplicarPagina);
+  // Não permite agir sobre a página anterior antes de o efeito iniciar a nova leitura.
+  const ready = loaded && result?.page === pagina && result.revision === revision;
+  const funcionarios = result?.rows ?? [];
+  const total = result?.total ?? 0;
+  const ultimaPagina = lastPage(total);
+  const temFormularioAberto = editandoId !== null || excluindoId !== null;
+
+  useEffect(() => {
+    if (ready && excluindoId === null && restoreDeleteFocus.current) {
+      exclusaoTrigger.current?.focus();
+      restoreDeleteFocus.current = false;
+    }
+    if (ready && focusAfterLoad.current) {
+      listHeading.current?.focus();
+      focusAfterLoad.current = false;
+    }
+  }, [ready, excluindoId]);
+
+  const atualizarLista = (page: number) => {
+    focusAfterLoad.current = true;
+    setPagina(page);
+    setRevision(value => value + 1);
+  };
 
   const criarFuncionario = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!ready || salvando || temFormularioAberto || requiresReload) return;
     if (!novoNome.trim()) return toast.error("O nome é obrigatório.");
     const diaria = parseMoney(novaDiaria, { allowEmpty: true });
     if (!diaria.ok) return toast.error(`Diária: ${diaria.error}`);
@@ -63,11 +102,11 @@ export default function EquipePage() {
           valor_diaria: diaria.value, user_id: user.id,
         }]).select("id, nome, cargo, valor_diaria").single<Funcionario>();
       },
-      onConfirmed: (funcionario) => {
-        setFuncionarios(prev => [funcionario, ...prev]);
+      onConfirmed: () => {
         setNovoNome("");
         setNovoCargo("");
         setNovaDiaria("");
+        atualizarLista(0);
       },
     });
   };
@@ -92,15 +131,15 @@ export default function EquipePage() {
         nome: editNome, cargo: editCargo, valor_diaria: diaria.value,
       }).eq("id", id).select("id, nome, cargo, valor_diaria").single<Funcionario>(),
       onConfirmed: (funcionario) => {
-        setFuncionarios(prev => prev.map(item => item.id === id ? funcionario : item));
+        setResult(prev => prev && ({ ...prev, rows: prev.rows.map(item => item.id === id ? funcionario : item) }));
         setEditandoId(null);
       },
     });
   };
 
   const cancelarExclusao = () => {
+    restoreDeleteFocus.current = true;
     setExcluindoId(null);
-    exclusaoTrigger.current?.focus();
   };
 
   const executarExclusao = async (id: number) => {
@@ -110,9 +149,10 @@ export default function EquipePage() {
       success: "Profissional removido da equipe.",
       request: () => supabase.from("funcionarios").delete().eq("id", id)
         .select("id").single<{ id: number }>(),
-      onConfirmed: (funcionario) => {
-        setFuncionarios(prev => prev.filter(f => f.id !== funcionario.id));
+      onConfirmed: () => {
         setExcluindoId(null);
+        exclusaoTrigger.current = null;
+        atualizarLista(Math.min(pagina, lastPage(Math.max(0, total - 1))));
       },
     });
   };
@@ -129,7 +169,7 @@ export default function EquipePage() {
       {/* HEADER */}
       <div className="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Link href="/home" className="p-2 bg-zinc-200 text-zinc-700 rounded-xl hover:bg-zinc-300 hover:text-zinc-900 transition-colors">
+          <Link aria-label="Voltar ao início" href="/home" className="p-2 bg-zinc-200 text-zinc-700 rounded-xl hover:bg-zinc-300 hover:text-zinc-900 transition-colors">
             <ArrowLeft size={24} />
           </Link>
           <div>
@@ -152,49 +192,49 @@ export default function EquipePage() {
 
             <form onSubmit={criarFuncionario} className="flex flex-col gap-4">
               <div>
-                <label className="block text-zinc-800 text-sm font-bold mb-1">Nome</label>
+                <label htmlFor="novo-nome" className="block text-zinc-800 text-sm font-bold mb-1">Nome</label>
                 <input
                   type="text"
                   className="w-full p-3 border border-zinc-300 rounded-xl text-zinc-900 font-medium placeholder-zinc-500 focus:ring-2 focus:ring-orange-600 outline-none transition-all bg-zinc-50 focus:bg-white"
-                  placeholder="Ex: Carlos Silva"
+                  id="novo-nome" placeholder="Ex: Carlos Silva"
                   value={novoNome}
                   onChange={(e) => setNovoNome(e.target.value)}
-                  disabled={salvando}
+                  disabled={salvando || temFormularioAberto}
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-zinc-800 text-sm font-bold mb-1">Cargo / Especialidade</label>
+                <label htmlFor="novo-cargo" className="block text-zinc-800 text-sm font-bold mb-1">Cargo / Especialidade</label>
                 <input
                   type="text"
                   className="w-full p-3 border border-zinc-300 rounded-xl text-zinc-900 font-medium placeholder-zinc-500 focus:ring-2 focus:ring-orange-600 outline-none transition-all bg-zinc-50 focus:bg-white"
-                  placeholder="Ex: Pedreiro, Pintor..."
+                  id="novo-cargo" placeholder="Ex: Pedreiro, Pintor..."
                   value={novoCargo}
                   onChange={(e) => setNovoCargo(e.target.value)}
-                  disabled={salvando}
+                  disabled={salvando || temFormularioAberto}
                 />
               </div>
 
               <div>
-                <label className="block text-zinc-800 text-sm font-bold mb-1">Valor da Diária (R$)</label>
+                <label htmlFor="nova-diaria" className="block text-zinc-800 text-sm font-bold mb-1">Valor da Diária (R$)</label>
                 <div className="flex items-center text-zinc-900 bg-zinc-50 border border-zinc-300 rounded-xl px-3 focus-within:ring-2 focus-within:ring-orange-600 focus-within:bg-white transition-all">
                   <span className="text-zinc-700 font-bold mr-2">R$</span>
                   <input
                     type="text"
                     inputMode="decimal"
                     className="w-full py-3 bg-transparent outline-none font-bold placeholder-zinc-500"
-                    placeholder="150,00"
+                    id="nova-diaria" placeholder="150,00"
                     value={novaDiaria}
                     onChange={(e) => setNovaDiaria(e.target.value)}
-                    disabled={salvando}
+                    disabled={salvando || temFormularioAberto}
                   />
                 </div>
               </div>
 
               <button
                 type="submit"
-                disabled={carregando || salvando || !novoNome.trim()}
+                disabled={carregando || salvando || temFormularioAberto || !novoNome.trim()}
                 className="w-full flex items-center justify-center gap-2 bg-zinc-900 text-white font-bold p-4 rounded-xl mt-2 hover:bg-zinc-800 disabled:opacity-50 transition shadow-md"
               >
                 <Plus size={20} />
@@ -209,7 +249,9 @@ export default function EquipePage() {
           <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden min-h-100">
             <div className="p-4 border-b border-zinc-200 bg-zinc-100 flex items-center gap-2">
               <HardHat size={20} className="text-zinc-700" />
-              <h3 className="font-extrabold text-zinc-900">Profissionais Cadastrados ({funcionarios.length})</h3>
+              <h2 ref={listHeading} tabIndex={-1} className="font-extrabold text-zinc-900">
+                Profissionais cadastrados ({total}) — página {pagina + 1} de {ultimaPagina + 1}
+              </h2>
             </div>
 
             {carregando ? (
@@ -228,15 +270,15 @@ export default function EquipePage() {
                     {editandoId === func.id ? (
                       /* MODO EDIÇÃO */
                       <div className="w-full flex flex-col md:flex-row gap-3 bg-orange-50 p-3 rounded-xl border border-orange-300 animate-in fade-in shadow-sm">
-                        <input className="flex-1 p-2 border border-orange-400 rounded-lg outline-none focus:ring-2 focus:ring-orange-600 text-zinc-900 font-medium placeholder-zinc-500 bg-white" disabled={salvando} value={editNome} onChange={(e) => setEditNome(e.target.value)} placeholder="Nome" />
-                        <input className="flex-1 p-2 border border-orange-400 rounded-lg outline-none focus:ring-2 focus:ring-orange-600 text-zinc-900 font-medium placeholder-zinc-500 bg-white" disabled={salvando} value={editCargo} onChange={(e) => setEditCargo(e.target.value)} placeholder="Cargo" />
+                        <input className="flex-1 p-2 border border-orange-400 rounded-lg outline-none focus:ring-2 focus:ring-orange-600 text-zinc-900 font-medium placeholder-zinc-500 bg-white" disabled={salvando} aria-label="Nome do profissional" value={editNome} onChange={(e) => setEditNome(e.target.value)} placeholder="Nome" />
+                        <input className="flex-1 p-2 border border-orange-400 rounded-lg outline-none focus:ring-2 focus:ring-orange-600 text-zinc-900 font-medium placeholder-zinc-500 bg-white" disabled={salvando} aria-label="Cargo do profissional" value={editCargo} onChange={(e) => setEditCargo(e.target.value)} placeholder="Cargo" />
                         <div className="flex items-center bg-white border border-orange-400 rounded-lg px-2 focus-within:ring-2 focus-within:ring-orange-600 w-full md:w-32">
                           <span className="text-zinc-600 font-bold text-sm">R$</span>
-                          <input type="text" inputMode="decimal" className="w-full p-2 outline-none text-right font-bold text-zinc-900 placeholder-zinc-500" disabled={salvando} value={editDiaria} onChange={(e) => setEditDiaria(e.target.value)} placeholder="0,00" />
+                          <input type="text" inputMode="decimal" className="w-full p-2 outline-none text-right font-bold text-zinc-900 placeholder-zinc-500" disabled={salvando} aria-label="Diária do profissional" value={editDiaria} onChange={(e) => setEditDiaria(e.target.value)} placeholder="0,00" />
                         </div>
                         <div className="flex gap-2">
-                          <button disabled={salvando} onClick={() => setEditandoId(null)} className="flex-1 md:flex-none p-3 bg-zinc-300 text-zinc-800 font-bold rounded-lg hover:bg-zinc-400 transition flex items-center justify-center"><X size={18}/></button>
-                          <button disabled={salvando} onClick={() => salvarEdicao(func.id)} className="flex-1 md:flex-none p-3 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition flex items-center justify-center shadow-sm"><Save size={18}/></button>
+                          <button aria-label="Cancelar edição" disabled={salvando} onClick={() => setEditandoId(null)} className="flex-1 md:flex-none p-3 bg-zinc-300 text-zinc-800 font-bold rounded-lg hover:bg-zinc-400 transition flex items-center justify-center"><X size={18}/></button>
+                          <button aria-label="Salvar profissional" disabled={salvando} onClick={() => salvarEdicao(func.id)} className="flex-1 md:flex-none p-3 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition flex items-center justify-center shadow-sm"><Save size={18}/></button>
                         </div>
                       </div>
                     ) : (
@@ -257,13 +299,13 @@ export default function EquipePage() {
                             <span className="text-xs font-black text-zinc-500 uppercase tracking-wider">Diária</span>
                             <span className="font-black text-emerald-700 text-lg flex items-center gap-1">
                               <DollarSign size={16} /> 
-                              {func.valor_diaria.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              {func.valor_diaria === null ? "Não informada" : func.valor_diaria.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
                           </div>
 
                           <div className="flex items-center gap-2">
-                            <button aria-label={`Editar ${func.nome}`} disabled={salvando} onClick={() => iniciarEdicao(func)} className="p-2.5 text-zinc-500 hover:text-blue-700 rounded-lg hover:bg-blue-100 transition-colors border border-transparent hover:border-blue-200"><Edit2 size={18} /></button>
-                            <button type="button" aria-label={`Excluir ${func.nome}`} aria-expanded={excluindoId === func.id} disabled={salvando} onClick={event => {
+                            <button aria-label={`Editar ${func.nome}`} disabled={salvando || temFormularioAberto} onClick={() => iniciarEdicao(func)} className="p-2.5 text-zinc-500 hover:text-blue-700 rounded-lg hover:bg-blue-100 transition-colors border border-transparent hover:border-blue-200"><Edit2 size={18} /></button>
+                            <button type="button" aria-label={`Excluir ${func.nome}`} aria-expanded={excluindoId === func.id} disabled={salvando || temFormularioAberto} onClick={event => {
                               exclusaoTrigger.current = event.currentTarget;
                               setEditandoId(null);
                               setExcluindoId(func.id);
@@ -285,6 +327,19 @@ export default function EquipePage() {
               </div>
             )}
           </div>
+          <nav aria-label="Paginação da equipe" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white p-4">
+            <p className="text-sm text-zinc-700" role="status">
+              {total === 0 ? "0 profissionais" : `${pagina * PAGE_SIZE + 1}–${pagina * PAGE_SIZE + funcionarios.length} de ${total} profissionais`}
+            </p>
+            <div className="flex gap-2">
+              <button type="button" disabled={salvando || pagina === 0 || temFormularioAberto}
+                onClick={() => { focusAfterLoad.current = true; setPagina(pagina - 1); }}
+                className="min-h-11 rounded-lg bg-zinc-900 px-4 py-3 font-bold text-white disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900">Anterior</button>
+              <button type="button" disabled={salvando || pagina >= ultimaPagina || temFormularioAberto}
+                onClick={() => { focusAfterLoad.current = true; setPagina(pagina + 1); }}
+                className="min-h-11 rounded-lg bg-zinc-900 px-4 py-3 font-bold text-white disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900">Próxima</button>
+            </div>
+          </nav>
         </div>
 
       </div>

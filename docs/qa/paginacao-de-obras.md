@@ -10,7 +10,8 @@ Ao trocar de página, o foco vai para o título da lista após o carregamento.
 Uma edição ou confirmação deve ser salva/concluída ou cancelada antes de criar
 ou alterar outra obra, evitando deixar um formulário aberto fora da página.
 
-`lib/project-pagination.ts` valida contagem, tamanho da resposta e IDs. Uma
+`lib/project-pagination.ts` usa o carregador compartilhado em `lib/pagination.ts`
+para validar contagem, tamanho da resposta e IDs. Uma
 resposta truncada não vira uma página completa nem um estado vazio. A tela mantém
 o controle de cancelamento, respostas antigas e timeout de `useDataLoad`.
 Durante uma leitura pendente ou com erro, os registros anteriores não ficam
@@ -69,8 +70,9 @@ Use uma conta e obras de teste, sem dados reais para excluir.
 ## Escopo e limites
 
 Não precisa executar SQL nem alterar RLS. As consultas continuam usando o cliente
-autenticado e as políticas existentes. Equipe, seletor da calculadora e detalhes
-da obra continuam com seus carregamentos atuais; esta etapa muda só `/projetos`.
+autenticado e as políticas existentes. A gestão de profissionais também recebeu
+[paginação da equipe](./paginacao-da-equipe.md). Seletor da calculadora e detalhes
+da obra continuam com seus carregamentos atuais.
 
 A página selecionada é local: recarregar ou reabrir a rota começa na primeira.
 Paginação por offset não fornece uma visão transacional entre páginas; inclusões

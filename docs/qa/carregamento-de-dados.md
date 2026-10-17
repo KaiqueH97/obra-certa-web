@@ -28,7 +28,7 @@ confirmada; mensagens de carregamento/erro aparecem na área de vincular o resul
 - Uma nova tentativa ou desmontagem aborta as consultas REST anteriores.
 - Há um limite de 20 segundos para o carregamento completo. Se excedido, a tela
   sai do carregamento e permite tentar novamente.
-- Não há repetição automática de gravações. Na lista paginada de obras, criação
+- Não há repetição automática de gravações. Nas listas paginadas de obras e equipe, criação
   e exclusão confirmadas buscam novamente apenas a página necessária e sua contagem.
 - `getUser()` não recebe o sinal de cancelamento REST; seu resultado tardio é
   ignorado pelo controlador, sem manter a interface bloqueada.
@@ -54,6 +54,8 @@ das listas por uma RPC com agregações e quatro projetos recentes.
 
 Na lista de projetos, a [paginação de obras](./paginacao-de-obras.md) passa a buscar
 20 registros por página, com controles na interface.
+A [paginação da equipe](./paginacao-da-equipe.md) aplica o mesmo limite à gestão
+de profissionais, usando o carregador compartilhado em `lib/pagination.ts`.
 
 Nas demais listas, esta é paginação de leitura, sem controles de páginas na interface. Todos
 os registros ainda ficam na memória do cliente. Agregações no banco e paginação

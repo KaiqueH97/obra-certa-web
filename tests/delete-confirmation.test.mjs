@@ -13,6 +13,8 @@ const base = { react: React, 'react/jsx-runtime': jsx }
 const mutation = loadTs(new URL('../lib/confirmed-mutation.ts', import.meta.url))
 const guard = loadTs(new URL('../app/components/MutationGuard.tsx', import.meta.url), { ...base, '@/lib/confirmed-mutation': mutation })
 const loads = loadTs(new URL('../lib/load-data.ts', import.meta.url))
+const pages = loadTs(new URL('../lib/pagination.ts', import.meta.url), { './load-data': loads })
+const loadHooks = loadTs(new URL('../app/hooks/useDataLoad.ts', import.meta.url), { ...base, '@/lib/load-data': loads })
 const money = loadTs(new URL('../lib/money.ts', import.meta.url))
 const confirmation = loadTs(new URL('../app/components/DeleteConfirmation.tsx', import.meta.url), base)
 const feedback = loadTs(new URL('../app/components/LoadFeedback.tsx', import.meta.url), base)
@@ -42,6 +44,7 @@ async function mount(t, config, timeoutMs = 20000) {
   const destinations = []
   let authEvent
   let response = { data: { id: 7 }, error: null }
+  let records = Array.isArray(config.data) ? [...config.data] : []
   const toast = Object.assign(() => { throw new Error('Confirmação não pode usar toast global') }, {
     dismiss: id => { assert.equal(id, 'mutation', 'Deve dispensar somente o toast da gravação'); notices.push(['dismiss', id]) },
     loading: message => { notices.push(['loading', message]); return 'mutation' },
@@ -59,7 +62,15 @@ async function mount(t, config, timeoutMs = 20000) {
         delete() { query.operation = 'delete'; return chain },
         eq(column, value) { query.filters.push([column, value]); return chain },
         select(columns) { query.columns = columns; return chain },
-        single() { requests.push(query); return Promise.resolve(response) },
+        order() { return chain },
+        range(from, to) { query.range = [from, to]; return chain },
+        abortSignal() { return Promise.resolve({ data: records.slice(query.range[0], query.range[1] + 1), count: records.length, error: null }) },
+        async single() {
+          requests.push(query)
+          const result = await response
+          if (!result.error && result.data?.id) records = records.filter(row => row.id !== result.data.id)
+          return result
+        },
       }
       return chain
     },
@@ -71,10 +82,10 @@ async function mount(t, config, timeoutMs = 20000) {
     ...base, 'react-hot-toast': { default: toast }, 'lucide-react': icons,
     'next/link': { default: props => h('a', props) },
     'next/navigation': { useParams: () => ({ id: '42' }) },
-    '@/lib/supabase': { supabase }, '@/lib/load-data': loads, '@/lib/money': money,
+    '@/lib/supabase': { supabase }, '@/lib/load-data': loads, '@/lib/money': money, '@/lib/pagination': pages,
     '@/lib/confirmed-mutation': mutation, '@/app/hooks/useConfirmedMutation': actions, '@/app/components/MutationGuard': guard,
     '@/app/components/DeleteConfirmation': confirmation, '@/app/components/LoadFeedback': feedback,
-    '@/app/hooks/useDataLoad': { useDataLoad: function useFakeDataLoad(load, apply) {
+    '@/app/hooks/useDataLoad': config.name === 'equipe' ? loadHooks : { useDataLoad: function useFakeDataLoad(load, apply) {
       React.useEffect(() => { apply(config.data) }, [apply])
       return { ready: true, loading: false, error: null, retry() {} }
     } },

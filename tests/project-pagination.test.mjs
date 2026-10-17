@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { loadTs } from './helpers/load-ts.mjs'
 const loads = loadTs(new URL('../lib/load-data.ts', import.meta.url))
-const { loadProjectPage, lastProjectPage } = loadTs(new URL('../lib/project-pagination.ts', import.meta.url), { './load-data': loads })
+const pages = loadTs(new URL('../lib/pagination.ts', import.meta.url), { './load-data': loads })
+const { loadProjectPage, lastProjectPage } = loadTs(new URL('../lib/project-pagination.ts', import.meta.url), { './pagination': pages })
 const rows = count => Array.from({ length: count }, (_, i) => ({ id: i + 1, titulo: `Obra ${i + 1}`, user_id: 'A', criado_em: '2026-01-01T00:00:00Z' }))
 const signal = () => new AbortController().signal
 

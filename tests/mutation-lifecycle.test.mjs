@@ -11,7 +11,8 @@ const base = { react: React, 'react/jsx-runtime': jsx }
 const mutation = loadTs(new URL('../lib/confirmed-mutation.ts', import.meta.url))
 const guard = loadTs(new URL('../app/components/MutationGuard.tsx', import.meta.url), { ...base, '@/lib/confirmed-mutation': mutation })
 const loads = loadTs(new URL('../lib/load-data.ts', import.meta.url))
-const pagination = loadTs(new URL('../lib/project-pagination.ts', import.meta.url), { './load-data': loads })
+const pages = loadTs(new URL('../lib/pagination.ts', import.meta.url), { './load-data': loads })
+const pagination = loadTs(new URL('../lib/project-pagination.ts', import.meta.url), { './pagination': pages })
 const money = loadTs(new URL('../lib/money.ts', import.meta.url))
 const confirmation = loadTs(new URL('../app/components/DeleteConfirmation.tsx', import.meta.url), base)
 const feedback = loadTs(new URL('../app/components/LoadFeedback.tsx', import.meta.url), base)
@@ -42,11 +43,11 @@ for (const route of ['projetos', 'equipe']) {
         auth: { getUser: () => { validations++; return user } },
         from: () => { queries++; throw new Error('Não deveria iniciar INSERT') },
       } },
-      '@/lib/load-data': loads, '@/lib/money': money, '@/lib/project-pagination': pagination,
+      '@/lib/load-data': loads, '@/lib/money': money, '@/lib/project-pagination': pagination, '@/lib/pagination': pages,
       '@/lib/confirmed-mutation': mutation, '@/app/hooks/useConfirmedMutation': actions, '@/app/components/MutationGuard': guard,
       '@/app/components/DeleteConfirmation': confirmation, '@/app/components/LoadFeedback': feedback,
       '@/app/hooks/useDataLoad': { useDataLoad: function useFixture(load, apply) {
-        React.useEffect(() => { apply(route === 'projetos' ? { rows: [], total: 0, page: 0, revision: 0 } : []) }, [apply])
+        React.useEffect(() => { apply({ rows: [], total: 0, page: 0, revision: 0 }) }, [apply])
         return { ready: true, loading: false, error: null, retry() {} }
       } },
     })

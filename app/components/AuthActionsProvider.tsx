@@ -4,6 +4,13 @@ import { createContext, useContext, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { supabase } from "@/lib/supabase";
 import { createAuthActions, type Credentials, type PendingAuthAction } from "@/lib/auth-actions";
+import { getLocale } from "@/lib/locale-store";
+import { translateAuthMessage } from "@/lib/i18n";
+
+function localizeNotice(message: string) {
+  const { text, lang } = translateAuthMessage(getLocale(), message);
+  return <span lang={lang}>{text}</span>;
+}
 
 const AuthActionsContext = createContext<{
   pending: PendingAuthAction;
@@ -22,9 +29,9 @@ export function AuthActionsProvider({ children }: { children: React.ReactNode })
     navigate: path => window.location.replace(path),
     onPendingChange: setPending,
     notices: {
-      loading: message => toast.loading(message),
-      success: (message, id) => { toast.success(message, { id }); },
-      error: (message, id) => { toast.error(message, { id }); },
+      loading: message => toast.loading(localizeNotice(message)),
+      success: (message, id) => { toast.success(localizeNotice(message), { id }); },
+      error: (message, id) => { toast.error(localizeNotice(message), { id }); },
       dismiss: id => { toast.dismiss(id); },
     },
   }));

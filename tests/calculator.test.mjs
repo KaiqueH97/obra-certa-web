@@ -5,6 +5,7 @@ import * as jsx from 'react/jsx-runtime'
 import * as icons from 'lucide-react'
 import { JSDOM } from 'jsdom'
 import { loadTs } from './helpers/load-ts.mjs'
+import { createI18nDependencies } from './helpers/i18n.mjs'
 
 const { act, createElement: h } = React
 const base = { react: React, 'react/jsx-runtime': jsx }
@@ -24,6 +25,7 @@ async function mount(t, landing = false, saveResponse = { data: { id: 1 }, error
   const toast = { error: text => notices.push(text), success() {}, dismiss() {}, loading: () => 'saving' }
   const actions = loadTs(new URL('../app/hooks/useConfirmedMutation.ts', import.meta.url), { ...base, 'react-hot-toast': { default: toast }, '@/lib/confirmed-mutation': { ...mutations, createMutationRunner: (notices, onPending, onUnconfirmed) => mutations.createMutationRunner(notices, onPending, onUnconfirmed, timeoutMs) } })
   const { default: Page } = loadTs(new URL(landing ? '../app/page.tsx' : '../app/(sistema)/calcular/page.tsx', import.meta.url), {
+    ...createI18nDependencies(),
     ...base, 'lucide-react': icons, 'react-hot-toast': { default: toast },
     'next/link': { default: props => h('a', props) },
     '@/lib/material-calculation': calculation,

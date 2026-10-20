@@ -24,7 +24,7 @@
     "test:profile": "node --test tests/profile.test.mjs tests/profile-page.test.mjs",
     "test:projects": "node --test tests/project-pagination.test.mjs tests/projects-page.test.mjs",
     "test:team": "node --test tests/team-page.test.mjs",
-    "test:i18n": "node --test tests/i18n.test.mjs"
+    "test:i18n": "node --test tests/i18n.test.mjs tests/public-i18n.test.mjs"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",

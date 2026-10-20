@@ -4,6 +4,7 @@ import * as React from 'react'
 import * as jsx from 'react/jsx-runtime'
 import { JSDOM } from 'jsdom'
 import { loadTs } from './helpers/load-ts.mjs'
+import { createI18nDependencies } from './helpers/i18n.mjs'
 
 const { createPasswordRecovery } = loadTs(new URL('../lib/password-recovery.ts', import.meta.url))
 const accepted = { data: {}, error: null }
@@ -110,6 +111,7 @@ async function mount(t, initial = accepted) {
   let response = initial
   const requests = []
   const { default: Page } = loadTs(new URL('../app/recuperar/page.tsx', import.meta.url), {
+    ...createI18nDependencies(),
     react: React, 'react/jsx-runtime': jsx, 'next/link': { default: props => h('a', props) },
     '@/lib/password-recovery': { createPasswordRecovery },
     '@/lib/supabase': { supabase: { auth: { resetPasswordForEmail: (email, options) => {

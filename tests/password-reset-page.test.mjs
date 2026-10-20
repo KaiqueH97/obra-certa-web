@@ -4,6 +4,7 @@ import * as React from 'react'
 import * as jsx from 'react/jsx-runtime'
 import { JSDOM } from 'jsdom'
 import { loadTs } from './helpers/load-ts.mjs'
+import { createI18nDependencies } from './helpers/i18n.mjs'
 
 const { createPasswordReset } = loadTs(new URL('../lib/password-reset.ts', import.meta.url))
 const { act, createElement: h } = React
@@ -32,6 +33,7 @@ async function mount(t, { url = 'https://app.example/redefinir-senha', authOverr
     ...authOverrides,
   }
   const { default: Page } = loadTs(new URL('../app/redefinir-senha/page.tsx', import.meta.url), {
+    ...createI18nDependencies(),
     react: React, 'react/jsx-runtime': jsx, 'next/link': { default: props => h('a', props) },
     '@/lib/password-reset': { createPasswordReset },
     '@/lib/supabase': { supabase: { auth } },

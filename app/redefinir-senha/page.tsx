@@ -1,11 +1,16 @@
 "use client";
 
+import { useLocale } from "@/app/hooks/useLocale";
+import { LanguageSwitcher } from "@/app/components/LanguageSwitcher";
+import { translateAuthMessage } from "@/lib/i18n";
+
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { createPasswordReset, type PasswordResetState } from "@/lib/password-reset";
 
 export default function RedefinirSenha() {
+  const { locale, t } = useLocale();
   const [novaSenha, setNovaSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
   const [state, setState] = useState<PasswordResetState>({ status: "checking", email: null, error: null });
@@ -39,45 +44,48 @@ export default function RedefinirSenha() {
     if (terminal) feedback.current?.focus();
   }, [terminal, state.status]);
 
+  const errorMessage = translateAuthMessage(locale, state.error ?? "");
+
   const handleRedefinir = async (event: React.FormEvent) => {
     event.preventDefault();
     await reset.submit(novaSenha, confirmarSenha);
   };
 
-  return <main className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
+  return <main lang={locale} className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
     <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-lg border border-gray-200">
-      <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">Nova senha</h1>
+      <div className="mb-6 flex justify-end text-zinc-900"><LanguageSwitcher /></div>
+      <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">{t("newPassword")}</h1>
 
-      {state.status === "checking" ? <p role="status" className="text-zinc-700">Validando seu acesso...</p> : terminal ? (
+      {state.status === "checking" ? <p role="status" className="text-zinc-700">{t("checkingAccess")}</p> : terminal ? (
         <div ref={feedback} tabIndex={-1} role={state.status === "success" ? "status" : "alert"}
           className="rounded-xl border border-zinc-300 bg-zinc-50 p-4 text-zinc-900">
-          {state.status === "success" ? "Senha alterada com sucesso! Você já pode continuar usando o sistema." : state.error}
+          {state.status === "success" ? t("passwordChanged") : <span lang={errorMessage.lang}>{errorMessage.text}</span>}
         </div>
       ) : (
         <form onSubmit={handleRedefinir} aria-busy={saving} className="flex flex-col gap-4">
-          <p className="text-zinc-700 wrap-break-word">Defina a nova senha para <strong>{state.email}</strong>.</p>
-          <p id="senha-requisitos" className="text-sm text-zinc-700">Use pelo menos 6 caracteres. Sua conta pode exigir uma senha mais forte.</p>
-          {state.error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-800">{state.error}</p>}
-          {saving && <p role="status" className="text-zinc-700">Salvando nova senha...</p>}
-          <label htmlFor="nova-senha" className="font-bold text-zinc-800">Nova senha</label>
+          <p className="text-zinc-700 wrap-break-word">{t("setPasswordFor")} <strong>{state.email}</strong>.</p>
+          <p id="senha-requisitos" className="text-sm text-zinc-700">{t("passwordRequirements")}</p>
+          {state.error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-800"><span lang={errorMessage.lang}>{errorMessage.text}</span></p>}
+          {saving && <p role="status" className="text-zinc-700">{t("savingPassword")}</p>}
+          <label htmlFor="nova-senha" className="font-bold text-zinc-800">{t("newPassword")}</label>
           <input id="nova-senha" type="password" autoComplete="new-password" minLength={6} aria-describedby="senha-requisitos"
             className="w-full p-4 border border-zinc-300 rounded-lg text-black focus:ring-2 focus:ring-orange-600 outline-none disabled:bg-zinc-100"
             value={novaSenha} onChange={event => setNovaSenha(event.target.value)} required disabled={saving} />
-          <label htmlFor="confirmar-senha" className="font-bold text-zinc-800">Confirmar senha</label>
+          <label htmlFor="confirmar-senha" className="font-bold text-zinc-800">{t("confirmPassword")}</label>
           <input id="confirmar-senha" type="password" autoComplete="new-password" minLength={6}
             className="w-full p-4 border border-zinc-300 rounded-lg text-black focus:ring-2 focus:ring-orange-600 outline-none disabled:bg-zinc-100"
             value={confirmarSenha} onChange={event => setConfirmarSenha(event.target.value)} required disabled={saving} />
           <button type="submit" disabled={saving}
             className="bg-orange-700 text-white font-bold p-4 rounded-lg hover:bg-orange-800 transition disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900">
-            {saving ? "Salvando..." : "Atualizar senha"}
+            {saving ? t("saving") : t("updatePassword")}
           </button>
         </form>
       )}
 
       <div className="mt-6 border-t border-gray-100 pt-6 flex flex-col gap-4 text-center">
-        {state.status === "success" && <a href="/home" className="text-orange-700 font-bold underline">Continuar para o painel</a>}
-        {state.status !== "success" && <Link href="/recuperar" className="text-orange-700 font-bold underline">Solicitar novo link</Link>}
-        <Link href="/login" className="text-zinc-700 font-bold underline">Voltar para o login</Link>
+        {state.status === "success" && <a href="/home" className="text-orange-700 font-bold underline">{t("continueDashboard")}</a>}
+        {state.status !== "success" && <Link href="/recuperar" className="text-orange-700 font-bold underline">{t("requestNewLink")}</Link>}
+        <Link href="/login" className="text-zinc-700 font-bold underline">{t("backToLoginLower")}</Link>
       </div>
     </div>
   </main>;

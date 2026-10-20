@@ -4,6 +4,7 @@ import * as React from 'react'
 import * as jsx from 'react/jsx-runtime'
 import { JSDOM } from 'jsdom'
 import { loadTs } from './helpers/load-ts.mjs'
+import { createI18nDependencies } from './helpers/i18n.mjs'
 
 const { act, createElement: h } = React
 const { createSignup } = loadTs(new URL('../lib/signup.ts', import.meta.url))
@@ -18,6 +19,7 @@ async function mount(t, initial = accepted) {
   let response = initial
   const requests = [], destinations = []
   const { default: Page } = loadTs(new URL('../app/cadastro/page.tsx', import.meta.url), {
+    ...createI18nDependencies(),
     react: React, 'react/jsx-runtime': jsx, 'next/link': { default: props => h('a', props) },
     '../../lib/supabase': { supabase: { auth: { signUp: input => { requests.push(input); return Promise.resolve(response) } } } },
     '@/lib/signup': { createSignup: deps => createSignup({ ...deps, navigate: path => destinations.push(path) }) },

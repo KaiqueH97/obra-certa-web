@@ -1,53 +1,47 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect } from "react";
 import toast from "react-hot-toast";
+import { translate } from "@/lib/i18n";
+import { getLocale, subscribeLocale } from "@/lib/locale-store";
+
+const NOTICE_ID = "network-status";
 
 export function NetworkMonitor() {
-  const [isOnline, setIsOnline] = useState(true);
-  const hasMounted = useRef(false);
-
   useEffect(() => {
-    // Funções de evento isoladas e limpas
-    const handleOnline = () => {
-      setIsOnline(true);
-      toast.success("Conexão restabelecida! Seus dados já podem ser sincronizados.", {
-        id: "network-status",
-        duration: 4000,
+    let online = window.navigator.onLine;
+    const showOffline = () => {
+      const locale = getLocale();
+      toast.error(<span lang={locale}>{translate(locale, "networkOffline")}</span>, {
+        id: NOTICE_ID, duration: Infinity,
+        style: { background: "#b91c1c", color: "#fff" },
       });
     };
-
     const handleOffline = () => {
-      setIsOnline(false);
-      toast.error("Você está offline. Algumas funções podem estar indisponíveis.", {
-        id: "network-status",
-        duration: Infinity,
-        style: {
-          background: '#ef4444',
-          color: '#fff',
-        }
+      if (!online) return;
+      online = false;
+      showOffline();
+    };
+    const handleOnline = () => {
+      if (online) return;
+      online = true;
+      const locale = getLocale();
+      toast.success(<span lang={locale}>{translate(locale, "networkOnline")}</span>, {
+        id: NOTICE_ID, duration: 4000,
+        style: { background: "#fff", color: "#111827" },
       });
     };
-
-    // No lugar de setar o estado de forma síncrona, apenas checamos
-    // no momento da montagem (após o primeiro render) se o usuário JÁ LIGOU o app offline.
-    if (typeof window !== "undefined" && !hasMounted.current) {
-      hasMounted.current = true;
-      if (!navigator.onLine) {
-        handleOffline();
-      }
-    }
-
-    // Apenas aguardamos os eventos do navegador acontecerem
+    if (!online) showOffline();
+    // Atualiza o aviso persistente no mesmo ID; não simula mudança de conexão.
+    const unsubscribe = subscribeLocale(() => { if (!online) showOffline(); });
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
-
-    // Cleanup: remove os listeners quando o componente for desmontado
     return () => {
+      unsubscribe();
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
+      toast.dismiss(NOTICE_ID);
     };
   }, []);
-
   return null;
 }

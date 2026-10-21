@@ -1,5 +1,6 @@
 "use client";
 
+import { useLocale } from "@/app/hooks/useLocale";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { createSessionGuard, type SessionView } from "@/lib/session-guard";
@@ -7,6 +8,7 @@ import { useAuthActions } from "./AuthActionsProvider";
 import { LoadFeedback } from "./LoadFeedback";
 
 export function PrivateSessionBoundary({ children }: { children: React.ReactNode }) {
+  const { locale, t } = useLocale();
   const { getPending } = useAuthActions();
   const [view, setView] = useState<SessionView>({ status: "checking", userId: null, error: null });
   const content = useRef<HTMLDivElement>(null);
@@ -53,9 +55,9 @@ export function PrivateSessionBoundary({ children }: { children: React.ReactNode
   }, [getPending]);
 
   return <>
-    {view.status === "blocked" ? <div role="status" className="p-6 text-zinc-800">
-      <p>Sua sessão mudou. Redirecionando...</p>
-      <a className="mt-3 inline-block font-bold underline" href={view.destination}>Continuar</a>
+    {view.status === "blocked" ? <div lang={locale} role="status" className="p-6 text-zinc-800">
+      <p>{t("sessionRedirect")}</p>
+      <a className="mt-3 inline-block font-bold underline" href={view.destination}>{t("continue")}</a>
     </div> : view.status !== "ready" && <LoadFeedback error={view.error} retry={() => { void guardRef.current?.check(); }} />}
     {/* Mantém formulários durante uma verificação da mesma conta; descarta na troca. */}
     {view.userId && <div ref={content} hidden={view.status !== "ready"} key={view.userId}>{children}</div>}

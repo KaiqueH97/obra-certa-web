@@ -2,6 +2,8 @@ import type { Locale } from "./i18n";
 
 // Chaves são os textos originais; nunca aplicar este catálogo a dados cadastrados.
 const english = {
+  "Não foi possível verificar sua sessão. Confira a conexão e tente novamente.": "We could not verify your session. Check your connection and try again.",
+  "Sessão indisponível.": "Session unavailable.",
   "Resumo da Obra": "Project overview",
   "Resumo dos seus canteiros no momento da consulta.": "Overview of your construction sites at the time of this request.",
   "Gerar Relatório": "Generate report",

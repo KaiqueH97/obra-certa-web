@@ -26,6 +26,7 @@ async function mount(t, initialResult = { data: { user: { id: 'A' } }, error: nu
   const destinations = []
   const getPending = () => null
   const { PrivateSessionBoundary } = loadTs(new URL('../app/components/PrivateSessionBoundary.tsx', import.meta.url), {
+    ...createI18nDependencies(),
     react: React,
     'react/jsx-runtime': jsx,
     '@/lib/supabase': { supabase: { auth: {
@@ -142,4 +143,22 @@ test('desmontagem remove inscrição e listeners de retorno à página', async t
   await flush()
   assert.equal(ui.calls(), before)
   assert.deepEqual(ui.destinations, [])
+})
+
+test('troca de idioma preserva sessão e formulário; redirecionamento usa inglês', async t => {
+  const ui = await mount(t)
+  const before = ui.calls(), input = ui.input()
+  input.value = 'rascunho preservado'
+  await act(() => {
+    window.localStorage.setItem('obra-certa:locale', 'en')
+    window.dispatchEvent(new window.StorageEvent('storage', { key: 'obra-certa:locale', newValue: 'en' }))
+  })
+  assert.equal(ui.calls(), before)
+  assert.equal(ui.input(), input)
+  assert.equal(ui.input().value, 'rascunho preservado')
+  await act(() => ui.event('SIGNED_OUT', null))
+  assert.match(document.querySelector('[role="status"]').textContent, /Your session changed. Redirecting/)
+  assert.equal(document.querySelector('[role="status"]').lang, 'en')
+  assert.equal(document.querySelector('a').textContent, 'Continue')
+  assert.equal(ui.input(), null)
 })

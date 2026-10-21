@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast"; // Import do Toaster global
 import { NetworkMonitor } from "@/app/components/NetworkMonitor"; // Import do nosso monitor
 import { AuthActionsProvider } from "@/app/components/AuthActionsProvider";
+import { DocumentLocale } from "@/app/components/DocumentLocale";
+import { DEFAULT_LOCALE, translate } from "@/lib/i18n";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -17,7 +19,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Obra Certa",
-  description: "Gestão de Obras e Calculadora de Materiais",
+  description: translate(DEFAULT_LOCALE, "appDescription"),
   manifest: "/manifest.json",
 };
 
@@ -32,15 +34,16 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="pt-BR" // Alterado para pt-BR para correta acessibilidade e leitores de tela
+      lang={DEFAULT_LOCALE}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {/* O monitor não tem visual, ele só roda a lógica de conexão em background */}
+        <DocumentLocale />
         <NetworkMonitor />
         
-        {/* O Toaster global garante que os alertas funcionem em qualquer tela */}
-        <Toaster position="top-center" />
+        {/* Avisos antigos em texto simples permanecem pt-BR; traduções declaram seu próprio lang. */}
+        <div lang="pt-BR"><Toaster position="top-center" /></div>
         
         <AuthActionsProvider>{children}</AuthActionsProvider>
       </body>

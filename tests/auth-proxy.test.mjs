@@ -77,7 +77,7 @@ for (const path of ['/projetos/123.png', '/projetos/123.svg', '/projetos/1/subpa
   })
 }
 
-for (const path of ['/', '/projetos-publicos', '/homework', '/~offline', '/manifest.json', '/sw.js', '/worker-test.js', '/workbox-test.js', '/favicon.ico', '/logo.png', '/_next/static/test.js', '/_next/image?url=test']) {
+for (const path of ['/', '/projetos-publicos', '/homework', '/~offline', '/manifest.json', '/manifest-en.json', '/sw.js', '/worker-test.js', '/workbox-test.js', '/favicon.ico', '/logo.png', '/_next/static/test.js', '/_next/image?url=test']) {
   test(`não consulta Auth em recurso fora do escopo: ${path}`, async () => {
     const f = fixture()
     assert.equal(matches(f.config, path), false)
@@ -170,7 +170,9 @@ for (const behavior of [
     assert.equal(response.cookies.getAll().length, 0)
     assert.match(response.headers.get('cache-control'), /no-store/)
     assert.equal(response.headers.get('retry-after'), '30')
-    assert.match(await response.text(), /validar sua sessão/)
+    const body = await response.text()
+    assert.match(body, /validar sua sessão/)
+    assert.match(body, /We could not verify your session/)
   })
 }
 

@@ -19,5 +19,8 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "id": "/login",
+  "lang": "pt-BR",
+  "dir": "ltr"
 }

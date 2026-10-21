@@ -3,6 +3,18 @@ export type Locale = "pt-BR" | "en";
 export const isLocale = (value: unknown): value is Locale => value === "pt-BR" || value === "en";
 
 const pt = {
+  appDescription: "Gestão de Obras e Calculadora de Materiais",
+  offlineTitle: "Você está offline",
+  offlineDescription: "Parece que você perdeu a conexão com a internet. O Obra Certa precisa de rede para carregar seus projetos e salvar alterações.",
+  retryConnection: "Tentar novamente",
+  networkOffline: "Você está offline. Algumas funções podem estar indisponíveis.",
+  networkOnline: "Conexão restabelecida. Você pode tentar novamente.",
+  notFoundTitle: "Página não encontrada",
+  notFoundDescription: "O endereço pode ter mudado ou não existir.",
+  backHome: "Voltar ao início",
+  sessionRedirect: "Sua sessão mudou. Redirecionando...",
+  continue: "Continuar",
+
   createAccount: "Criar Conta",
   checkEmail: "Confira seu e-mail",
   signupEmailHelp: "Se o cadastro puder ser concluído com este e-mail, você receberá instruções para confirmar o acesso. Confira também a pasta de spam.",
@@ -88,6 +100,18 @@ const pt = {
 
 export type MessageKey = keyof typeof pt;
 const en: Record<MessageKey, string> = {
+  appDescription: "Construction project management and material calculator",
+  offlineTitle: "You're offline",
+  offlineDescription: "You may have lost your internet connection. Obra Certa needs a network connection to load your projects and save changes.",
+  retryConnection: "Try again",
+  networkOffline: "You're offline. Some features may be unavailable.",
+  networkOnline: "Connection restored. You can try again.",
+  notFoundTitle: "Page not found",
+  notFoundDescription: "This address may have changed or may not exist.",
+  backHome: "Back to home",
+  sessionRedirect: "Your session changed. Redirecting...",
+  continue: "Continue",
+
   createAccount: "Create account",
   checkEmail: "Check your email",
   signupEmailHelp: "If registration can be completed with this email, you will receive instructions to confirm access. Check your spam folder too.",

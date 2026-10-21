@@ -61,7 +61,7 @@ export async function proxy(request: NextRequest) {
 
   if (isProtected && authUnavailable) {
     return completeResponse(new NextResponse(
-      'Não foi possível validar sua sessão. Tente atualizar a página em alguns instantes.',
+      'Não foi possível validar sua sessão. Tente atualizar a página em alguns instantes.\n\nWe could not verify your session. Try reloading the page shortly.',
       { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Retry-After': '30' } },
     ))
   }

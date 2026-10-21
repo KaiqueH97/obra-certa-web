@@ -34,7 +34,8 @@ Nesta etapa foram traduzidos:
 
 A mudança de idioma não remonta formulários nem reinicia autenticação. Notificações
 novas usam o idioma no momento de sua emissão; uma notificação já visível não é
-retraduzida automaticamente. Mensagens inline dos formulários mudam com a seleção,
+retraduzida automaticamente, exceto o aviso persistente de desconexão, que é
+atualizado no mesmo ID. Mensagens inline dos formulários mudam com a seleção,
 sem reenviar requisições nem revalidar a sessão. Labels do login apontam para os inputs.
 
 O idioma não altera senhas, nomes ou e-mails digitados, URLs de recuperação, regras
@@ -43,9 +44,11 @@ Supabase usam os templates configurados no serviço; esta etapa traduz o aplicat
 sem configurar ou personalizar esses templates.
 
 As regiões traduzidas declaram `lang` de acordo com a seleção, inclusive os avisos.
-O `html lang="pt-BR"` permanece correto para as regiões ainda em português. A
-mudança global do idioma do documento será feita quando o conteúdo das demais
-telas estiver traduzido. Não basta alterar apenas o `lang` para traduzir uma tela.
+O servidor entrega `html lang="pt-BR"` e metadados em português. Após hidratar,
+`DocumentLocale` acompanha a preferência local e atualiza o idioma do documento,
+a descrição e o link do manifesto. A seleção não remonta telas nem muda URLs.
+Avisos antigos em texto simples ficam em uma região explicitamente `pt-BR`;
+avisos traduzidos declaram o idioma da mensagem, mesmo após nova troca.
 
 Nesta etapa também foram traduzidos dashboard, perfil e listas paginadas de obras
 e equipe, incluindo formulários, confirmações e rótulos acessíveis. O catálogo
@@ -74,16 +77,35 @@ no WhatsApp, nomes e quantidades cadastrados são conteúdo literal, sem traduç
 por reconhecimento de palavras. Não há migração dos dados existentes. Nomes,
 descrições, tarefas e valores digitados permanecem intactos ao trocar o idioma.
 
-## Escopo pendente
+## PWA, conexão e páginas auxiliares
 
-O aplicativo ainda não está integralmente em inglês. Monitor de rede e tela offline
-continuam em português.
-Manifesto PWA e descrição de metadados também precisam ser tratados nas próximas etapas.
+- Tela offline e página 404 têm tradução e seletor de idioma próprios.
+- O aviso offline permanece visível e muda de idioma no mesmo ID. Reconectar
+  substitui esse aviso por uma confirmação temporária; trocar idioma não simula
+  reconexão. Nenhuma gravação pendente é reenviada automaticamente.
+- “Tentar novamente” na tela offline faz navegação completa para `/`, evitando
+  reutilizar a resposta de fallback do roteador.
+- Mensagens de verificação e mudança de sessão acompanham o idioma sem reiniciar
+  o controlador. A resposta 503 do proxy é bilíngue: a preferência está em
+  localStorage e não é enviada ao servidor.
+- `/manifest.json` e `/manifest-en.json` contêm idioma e descrição correspondentes.
+  Nome, ícones, escopo, entrada e identidade são os mesmos. `id: "/login"` mantém
+  a identidade implícita anterior baseada no `start_url`, conforme a
+  [documentação do manifesto](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Manifest/Reference/id).
+- O manifesto inglês é selecionado após hidratar. A apresentação e atualização
+  dos metadados de um app já instalado precisam ser verificadas no navegador
+  alvo; não há reinstalação automática nem promessa de atualização imediata.
 
-Próximos commits sugeridos:
+## Limites e validação pendente
 
-1. Completar PWA/metadados e idioma global do documento; verificar telas mobile
-   e fluxos completos em inglês e português.
+A tradução das telas do aplicativo está implementada. Ainda é necessário validar
+visualmente no celular, com leitor de tela e no PWA instalado. Testes em jsdom não
+substituem o navegador para service worker, instalação ou layout.
+
+O HTML inicial e os metadados vistos sem JavaScript continuam em português; esta
+etapa não cria URLs por idioma nem SEO bilíngue no servidor. Templates de e-mail
+do Supabase, mensagens do navegador e conteúdo cadastrado não são traduzidos
+pelo aplicativo. A tela offline não permite ler ou editar dados privados sem rede.
 
 ## Validação
 
@@ -167,5 +189,28 @@ Supabase são simuladas; não alteram dados reais.
 cobrem os fluxos desta etapa, incluindo gravação em inglês, troca durante envio,
 foco, abas e relatório para WhatsApp. As integrações são simuladas e não enviam
 mensagens nem alteram dados reais.
+
+23. Em inglês, abra o DevTools e confira `html lang="en"`, a descrição e o link
+    `/manifest-en.json`. Volte ao português e confira a atualização. Navegue por
+    várias telas e confirme que o idioma continua correto. Teste também outra aba.
+24. Em uma compilação de produção (`npm run build` e `npm start`), aguarde a
+    instalação/ativação do service worker. Desligue a rede: deve aparecer apenas
+    um aviso de desconexão. Troque o idioma: o mesmo aviso deve ser traduzido.
+    Reconecte: o aviso deve virar confirmação temporária sem reenviar gravações.
+25. Com o service worker ativo e inglês salvo, desligue a rede e navegue/recarregue.
+    O fallback offline deve carregar seus recursos públicos e mostrar inglês após
+    hidratar. Teste o seletor sem rede; reconecte e use “Try again” para voltar.
+    A primeira visita sem cache nem conexão não tem garantia de fallback.
+26. Abra um endereço inexistente: confira a página 404 nos dois idiomas e o retorno
+    ao início. Use teclado e leitor de tela nos avisos e nos seletores.
+27. Antes de instalar em um navegador de teste, selecione inglês. Inspecione o
+    manifesto: `lang: en`, descrição inglesa, nome Obra Certa, `id` e `start_url`
+    iguais a `/login`. Teste também em português e em uma instalação já existente.
+    Confira que dados privados continuam ausentes do cache de runtime.
+
+`npm run test:i18n` inclui hidratação offline, documento/metadados, manifestos
+bilíngues, eventos de conexão, limpeza de listeners e a página 404.
+`npm run test:pwa` verifica as regras de cache; `npm run test:session` e
+`npm run test:auth` cobrem a proteção de sessão e o proxy.
 
 Nenhum SQL ou alteração de configuração do Supabase é necessário nesta etapa.

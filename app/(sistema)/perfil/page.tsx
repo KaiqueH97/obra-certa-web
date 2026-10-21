@@ -1,5 +1,7 @@
 "use client";
 
+import { usePrivateLocale } from "@/app/hooks/usePrivateLocale";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -10,6 +12,7 @@ import { createProfileSaver, profileInitials, readProfile, type Profile, type Pr
 import { User, Phone, Mail, LogOut, Shield, Save, X, HardHat, Key } from "lucide-react";
 
 export default function Perfil() {
+  const { locale, p, message } = usePrivateLocale();
   const router = useRouter();
   const { logout, pending, getPending } = useAuthActions();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -53,21 +56,21 @@ export default function Perfil() {
     if (profile) await saver.save(profile.id, { nome: novoNome, telefone: novoTelefone });
   };
 
-  if (!ready || !profile) return <section>
-    <h1 className="text-2xl font-extrabold text-zinc-900">Meu Perfil</h1>
+  if (!ready || !profile) return <section lang={locale}>
+    <h1 className="text-2xl font-extrabold text-zinc-900">{p("Meu Perfil")}</h1>
     <LoadFeedback error={error} retry={retry} />
   </section>;
 
   const { nome, telefone, email } = profile;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div lang={locale} className="space-y-6 animate-in fade-in duration-500">
       
       {/* HEADER PRINCIPAL */}
       <div className="bg-white p-6 rounded-2xl border border-zinc-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-zinc-900 tracking-tight">Meu Perfil</h1>
-          <p className="text-sm md:text-base text-zinc-500 mt-1">Gerencie suas informações e preferências do sistema.</p>
+          <h1 className="text-2xl md:text-3xl font-extrabold text-zinc-900 tracking-tight">{p("Meu Perfil")}</h1>
+          <p className="text-sm md:text-base text-zinc-500 mt-1">{p("Gerencie suas informações e preferências do sistema.")}</p>
         </div>
       </div>
 
@@ -83,9 +86,9 @@ export default function Perfil() {
               {profileInitials(nome)}
             </div>
             
-            <h2 className="text-xl font-bold text-zinc-900 mb-1">{nome}</h2>
+            <h2 className="text-xl font-bold text-zinc-900 mb-1">{nome || p("Usuário")}</h2>
             <p className="text-sm font-medium text-zinc-500 flex items-center gap-1">
-              <HardHat size={16} /> Profissional da Obra
+              <HardHat size={16} /> {p("Profissional da Obra")}
             </p>
 
             <div className="w-full h-px bg-zinc-100 my-6"></div>
@@ -95,7 +98,7 @@ export default function Perfil() {
               disabled={pending !== null || salvando}
               className="w-full flex items-center justify-center gap-2 bg-red-50 text-red-600 hover:bg-red-100 font-bold p-3 rounded-xl transition-colors"
             >
-              <LogOut size={20} /> {pending === "logout" ? "Saindo..." : "Sair do Sistema"}
+              <LogOut size={20} /> {pending === "logout" ? p("Saindo...") : p("Sair do Sistema")}
             </button>
           </div>
         </div>
@@ -107,30 +110,30 @@ export default function Perfil() {
           <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
             <div className="p-4 md:p-6 border-b border-zinc-100 bg-zinc-50 flex items-center gap-2">
               <User size={20} className="text-orange-600" />
-              <h3 className="font-bold text-zinc-900 text-lg">Dados Pessoais</h3>
+              <h3 className="font-bold text-zinc-900 text-lg">{p("Dados Pessoais")}</h3>
             </div>
             
             <div className="p-4 md:p-6">
               {saveState.message && <div ref={feedback} tabIndex={-1}
                 role={saveState.status === "success" ? "status" : "alert"}
                 className="mb-4 rounded-xl border border-zinc-300 bg-zinc-50 p-4 text-zinc-900">
-                <p>{saveState.message}</p>
-                {bloqueado && <a href="/perfil" className="mt-3 inline-block font-bold underline">Recarregar perfil</a>}
+                <p lang={message(saveState.message).lang}>{message(saveState.message).text}</p>
+                {bloqueado && <a href="/perfil" className="mt-3 inline-block font-bold underline">{p("Recarregar perfil")}</a>}
               </div>}
               {!editando || bloqueado ? (
                 /* MODO VISUALIZAÇÃO */
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
-                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide">Nome Completo</label>
-                      <p className="text-zinc-900 font-medium text-lg mt-1">{nome}</p>
+                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide">{p("Nome Completo")}</label>
+                      <p className="text-zinc-900 font-medium text-lg mt-1">{nome || p("Usuário")}</p>
                     </div>
                     <div>
                       <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide flex items-center gap-1">
                         <Phone size={14} /> WhatsApp
                       </label>
                       <p className="text-zinc-900 font-medium text-lg mt-1">
-                        {telefone || <span className="text-zinc-400 italic">Não informado</span>}
+                        {telefone || <span className="text-zinc-400 italic">{p("Não informado")}</span>}
                       </p>
                     </div>
                   </div>
@@ -141,28 +144,28 @@ export default function Perfil() {
                       disabled={ocupado || bloqueado}
                       className="bg-zinc-900 text-white px-6 py-2.5 rounded-xl hover:bg-zinc-800 transition-colors shadow-sm font-medium"
                     >
-                      Editar Dados
+                      {p("Editar Dados")}
                     </button>
                   </div>
                 </div>
               ) : (
                 /* MODO EDIÇÃO */
                 <form onSubmit={handleSalvarDados} aria-busy={salvando} className="space-y-4 animate-in fade-in">
-                  {salvando && <p role="status" className="text-zinc-700">Salvando seus dados...</p>}
+                  {salvando && <p role="status" className="text-zinc-700">{p("Salvando seus dados...")}</p>}
                   <div>
-                    <label htmlFor="perfil-nome" className="block text-zinc-700 text-sm font-bold mb-2">Nome Completo</label>
+                    <label htmlFor="perfil-nome" className="block text-zinc-700 text-sm font-bold mb-2">{p("Nome Completo")}</label>
                     <input
                       id="perfil-nome" type="text" autoComplete="name" required
                       className="w-full p-3 border border-zinc-300 rounded-xl text-zinc-900 focus:ring-2 focus:ring-orange-600 outline-none transition-all disabled:bg-zinc-100"
                       value={novoNome}
                       onChange={(e) => setNovoNome(e.target.value)}
-                      placeholder="Ex: João da Silva"
+                      placeholder={p("Ex: João da Silva")}
                       disabled={ocupado}
                     />
                   </div>
                   
                   <div>
-                    <label htmlFor="perfil-telefone" className="block text-zinc-700 text-sm font-bold mb-2">WhatsApp de Contato</label>
+                    <label htmlFor="perfil-telefone" className="block text-zinc-700 text-sm font-bold mb-2">{p("WhatsApp de Contato")}</label>
                     <input
                       id="perfil-telefone" type="tel" autoComplete="tel"
                       className="w-full p-3 border border-zinc-300 rounded-xl text-zinc-900 focus:ring-2 focus:ring-orange-600 outline-none transition-all disabled:bg-zinc-100"
@@ -172,7 +175,7 @@ export default function Perfil() {
                       disabled={ocupado}
                     />
                     <p className="text-xs text-zinc-500 mt-2">
-                      Este número será usado para formatar suas mensagens de orçamento no WhatsApp.
+                      {p("Este número será usado para formatar suas mensagens de orçamento no WhatsApp.")}
                     </p>
                   </div>
 
@@ -188,14 +191,14 @@ export default function Perfil() {
                       disabled={ocupado}
                       className="px-6 py-2.5 bg-zinc-100 text-zinc-700 font-bold rounded-xl hover:bg-zinc-200 transition disabled:opacity-50 flex items-center gap-2"
                     >
-                      <X size={18} /> Cancelar
+                      <X size={18} /> {p("Cancelar")}
                     </button>
                     <button 
                       type="submit"
                       disabled={ocupado}
                       className="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition disabled:opacity-50 flex items-center gap-2 shadow-sm"
                     >
-                      <Save size={18} /> {salvando ? "Salvando..." : "Salvar"}
+                      <Save size={18} /> {salvando ? p("Salvando...") : p("Salvar")}
                     </button>
                   </div>
                 </form>
@@ -207,33 +210,33 @@ export default function Perfil() {
           <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
             <div className="p-4 md:p-6 border-b border-zinc-100 bg-zinc-50 flex items-center gap-2">
               <Shield size={20} className="text-orange-600" />
-              <h3 className="font-bold text-zinc-900 text-lg">Segurança de Acesso</h3>
+              <h3 className="font-bold text-zinc-900 text-lg">{p("Segurança de Acesso")}</h3>
             </div>
             
             <div className="p-4 md:p-6 space-y-6">
               <div>
                 <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide flex items-center gap-1">
-                  <Mail size={14} /> E-mail da Conta
+                  <Mail size={14} /> {p("E-mail da Conta")}
                 </label>
                 <div className="mt-2 p-3 bg-zinc-50 border border-zinc-200 rounded-xl">
-                  <p className="text-zinc-700 font-medium">{email}</p>
+                  <p className="text-zinc-700 font-medium">{email || p("E-mail não informado")}</p>
                 </div>
                 <p className="text-xs text-zinc-500 mt-2">
-                  O e-mail não pode ser alterado por aqui. Entre em contato com o suporte se precisar atualizar.
+                  {p("O e-mail não pode ser alterado por aqui. Entre em contato com o suporte se precisar atualizar.")}
                 </p>
               </div>
 
               <div className="pt-4 border-t border-zinc-100 flex items-center justify-between">
                 <div>
-                  <h4 className="font-bold text-zinc-900 text-sm">Senha de Acesso</h4>
-                  <p className="text-xs text-zinc-500 mt-1">Use uma senha forte e exclusiva para sua conta.</p>
+                  <h4 className="font-bold text-zinc-900 text-sm">{p("Senha de Acesso")}</h4>
+                  <p className="text-xs text-zinc-500 mt-1">{p("Use uma senha forte e exclusiva para sua conta.")}</p>
                 </div>
                 <button 
                   onClick={() => router.push('/redefinir-senha')}
                   disabled={ocupado}
                   className="flex items-center gap-2 bg-orange-50 text-orange-600 px-4 py-2 rounded-lg hover:bg-orange-100 transition-colors font-medium text-sm"
                 >
-                  <Key size={16} /> Redefinir
+                  <Key size={16} /> {p("Redefinir")}
                 </button>
               </div>
             </div>

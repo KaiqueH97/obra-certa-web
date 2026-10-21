@@ -18,11 +18,12 @@ export function readProfile(response: AuthResponse): Profile {
     throw new LoadError("Não foi possível carregar seu perfil. Confira sua conexão e tente novamente.");
   }
   const data = metadata(user.user_metadata);
+  // Ausências ficam vazias: o fallback traduzido pertence à apresentação, não ao formulário.
   return {
     id: user.id,
-    nome: typeof data.nome === "string" && data.nome.trim() ? data.nome.trim() : "Usuário",
+    nome: typeof data.nome === "string" && data.nome.trim() ? data.nome.trim() : "",
     telefone: typeof data.telefone === "string" ? data.telefone.trim() : "",
-    email: typeof user.email === "string" && user.email ? user.email : "E-mail não informado",
+    email: typeof user.email === "string" && user.email ? user.email : "",
   };
 }
 

@@ -1,3 +1,4 @@
+import { createI18nDependencies } from './helpers/i18n.mjs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import * as React from 'react'
@@ -11,7 +12,7 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 20))
 const flush = () => act(tick)
 const loadData = loadTs(new URL('../lib/load-data.ts', import.meta.url))
 const { createSessionGuard } = loadTs(new URL('../lib/session-guard.ts', import.meta.url), { './load-data': loadData })
-const { LoadFeedback } = loadTs(new URL('../app/components/LoadFeedback.tsx', import.meta.url), { 'react/jsx-runtime': jsx })
+const { LoadFeedback } = loadTs(new URL('../app/components/LoadFeedback.tsx', import.meta.url), { 'react/jsx-runtime': jsx, ...createI18nDependencies() })
 
 async function mount(t, initialResult = { data: { user: { id: 'A' } }, error: null }) {
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://app.example/home', pretendToBeVisual: true })

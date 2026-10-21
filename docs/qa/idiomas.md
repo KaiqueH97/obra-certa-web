@@ -1,4 +1,4 @@
-# Idiomas — navegação e telas públicas
+# Idiomas — navegação, telas públicas e gestão
 
 ## Decisões
 
@@ -47,18 +47,29 @@ O `html lang="pt-BR"` permanece correto para as regiões ainda em português. A
 mudança global do idioma do documento será feita quando o conteúdo das demais
 telas estiver traduzido. Não basta alterar apenas o `lang` para traduzir uma tela.
 
+Nesta etapa também foram traduzidos dashboard, perfil e listas paginadas de obras
+e equipe, incluindo formulários, confirmações e rótulos acessíveis. O catálogo
+`lib/private-i18n.ts` usa os textos originais como chaves tipadas e interpola dados
+sem traduzir nomes ou cargos. Datas seguem o idioma; custos e diárias usam `Intl`
+com moeda BRL. Valores digitados aceitam os mesmos formatos de antes e não são
+reformatados durante a troca de idioma.
+
+Avisos compartilhados de carregamento, gravação e bloqueio também acompanham a
+preferência. Mensagens ainda não catalogadas mantêm o texto original com `lang="pt-BR"`.
+No perfil, nome/e-mail ausentes recebem fallback apenas na apresentação: o campo
+de edição não é preenchido com “Usuário” ou “User”.
+
 ## Escopo pendente
 
-O aplicativo ainda não está integralmente em inglês. Dashboard, perfil, calculadora interna, listas e detalhes
-da obra, confirmações gerais, monitor de rede e tela offline continuam em português.
+O aplicativo ainda não está integralmente em inglês. Calculadora interna, detalhes
+da obra, mensagens específicas desses fluxos, monitor de rede e tela offline continuam em português.
 Manifesto PWA e descrição de metadados também precisam ser tratados nas próximas etapas.
 
 Próximos commits sugeridos:
 
-1. Traduzir dashboard, perfil e listas de obras/equipe.
-2. Traduzir calculadora e detalhes da obra, incluindo mensagens compartilhadas,
+1. Traduzir calculadora e detalhes da obra, incluindo mensagens compartilhadas,
    textos gerados para WhatsApp, datas e números com `Intl` mantendo BRL.
-3. Completar PWA/metadados e idioma global do documento; verificar telas mobile
+2. Completar PWA/metadados e idioma global do documento; verificar telas mobile
    e fluxos completos em inglês e português.
 
 ## Validação
@@ -97,5 +108,29 @@ Roteiro manual:
 11. Com rede lenta, troque o idioma durante uma solicitação. No Network, confirme
     que isso não duplica o envio. Na redefinição, não deve consumir o callback
     novamente nem apagar as senhas durante uma troca de idioma.
+
+12. Em `/home`, alterne os idiomas: títulos e avisos devem mudar sem nova consulta
+    ao banco. O custo deve continuar em reais (ex.: `R$ 1.234,56` / `R$1,234.56`).
+13. Em `/projetos`, avance para a segunda página, abra uma edição e digite um
+    título. Troque o idioma: página e rascunho devem permanecer. Salve e confira
+    o título original. Abra uma exclusão e confira o aviso nos dois idiomas;
+    cancele sem excluir dados de produção.
+14. Em `/equipe`, preencha nome, cargo e diária `150,50`. Troque para inglês antes
+    de cadastrar: deve manter os campos e gravar 150,50 reais. Nomes e cargos
+    cadastrados continuam no idioma em que foram escritos. Confira os rótulos
+    dos botões de edição/exclusão e o foco ao cancelar a confirmação.
+15. Em `/perfil`, alterne durante edição e envio com rede lenta: os campos não
+    devem ser limpos nem ocorrer envio duplicado. Sucesso/erro inline acompanha
+    o idioma. A troca não deve provocar nova leitura do perfil.
+16. Simule falha de rede numa lista. Confira “Try again” e recuperação. Se uma
+    gravação tiver resultado incerto, a troca de idioma deve manter a edição
+    bloqueada até recarregar e conferir os dados.
+17. No celular, confira cabeçalhos, formulários, paginação e confirmações nas
+    quatro telas em inglês, com zoom e teclado. Testes jsdom não validam layout
+    visual nem substituem este roteiro.
+
+Os testes de dashboard, perfil, projetos e equipe incluem cenários bilíngues de
+paginação, rascunho, foco, falha de leitura e gravação em andamento. As chamadas ao
+Supabase são simuladas; não alteram dados reais.
 
 Nenhum SQL ou alteração de configuração do Supabase é necessário nesta etapa.

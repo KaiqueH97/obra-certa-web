@@ -1,3 +1,4 @@
+import { createI18nDependencies } from './helpers/i18n.mjs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import * as React from 'react'
@@ -6,7 +7,7 @@ import { JSDOM } from 'jsdom'
 import { loadTs } from './helpers/load-ts.mjs'
 const loads = loadTs(new URL('../lib/load-data.ts', import.meta.url))
 const profile = loadTs(new URL('../lib/profile.ts', import.meta.url), { './load-data': loads })
-const reactDeps = { react: React, 'react/jsx-runtime': jsx }
+const reactDeps = { react: React, 'react/jsx-runtime': jsx, ...createI18nDependencies() }
 const hooks = loadTs(new URL('../app/hooks/useDataLoad.ts', import.meta.url), { ...reactDeps, '@/lib/load-data': loads })
 const feedback = loadTs(new URL('../app/components/LoadFeedback.tsx', import.meta.url), reactDeps)
 const { act, createElement: h } = React
@@ -16,6 +17,7 @@ function button(text) { return [...document.querySelectorAll('button')].find(nod
 async function mount(t, overrides = {}) {
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://app.example/perfil' })
   globalThis.window = dom.window
+  reactDeps['@/lib/locale-store'].setLocale('pt-BR')
   globalThis.document = dom.window.document
   globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const { createRoot } = await import('react-dom/client')
@@ -155,4 +157,37 @@ test('sair durante envio ignora o retorno e não navega nem deixa feedback globa
   await act(() => d.resolve(response({ nome: 'Maria Silva', telefone: '' })))
   assert.equal(document.body.textContent, '')
   assert.equal(ui.destinations.length, 0)
+})
+
+test('troca durante edição e envio preserva dados e controlador do perfil', async t => {
+  let reads = 0
+  const d = deferred(), writes = []
+  const ui = await mount(t, {
+    getUser: async () => { reads++; return response() },
+    updateUser: ({ data }) => { writes.push(data); return d.promise },
+  })
+  await ui.click('Editar Dados')
+  await ui.fill('Usuário', '11988887777')
+  const before = reads
+  await act(() => reactDeps['@/lib/locale-store'].setLocale('en'))
+  assert.equal(reads, before)
+  assert.equal(document.querySelector('#perfil-nome').value, 'Usuário')
+  assert.ok(button('Save'))
+  await ui.submit()
+  assert.equal(writes.length, 1)
+  await act(() => reactDeps['@/lib/locale-store'].setLocale('pt-BR'))
+  assert.ok(button('Salvando...').disabled)
+  await act(() => reactDeps['@/lib/locale-store'].setLocale('en'))
+  await act(() => d.resolve(response(writes[0])))
+  assert.equal(document.querySelector('h2').textContent, 'Usuário')
+  assert.match(document.querySelector('[role="status"]').textContent, /Details updated successfully/)
+  assert.equal(writes.length, 1)
+})
+
+test('perfil sem nome usa fallback traduzido sem inserir tradução no formulário', async t => {
+  const ui = await mount(t, { getUser: async () => response({}) })
+  await act(() => reactDeps['@/lib/locale-store'].setLocale('en'))
+  assert.equal(document.querySelector('h2').textContent, 'User')
+  await ui.click('Edit details')
+  assert.equal(document.querySelector('#perfil-nome').value, '')
 })

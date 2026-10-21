@@ -1,3 +1,4 @@
+import { createI18nDependencies } from './helpers/i18n.mjs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import * as React from 'react'
@@ -6,7 +7,7 @@ import * as icons from 'lucide-react'
 import { JSDOM } from 'jsdom'
 import { loadTs } from './helpers/load-ts.mjs'
 const { act, createElement: h } = React
-const base = { react: React, 'react/jsx-runtime': jsx }
+const base = { react: React, 'react/jsx-runtime': jsx, ...createI18nDependencies() }
 const loads = loadTs(new URL('../lib/load-data.ts', import.meta.url))
 const pages = loadTs(new URL('../lib/pagination.ts', import.meta.url), { './load-data': loads })
 const money = loadTs(new URL('../lib/money.ts', import.meta.url))
@@ -24,6 +25,7 @@ function deferred() { let resolve; const promise = new Promise(done => { resolve
 async function mount(t, count = 45) {
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://app.example/equipe' })
   globalThis.window = dom.window
+  base['@/lib/locale-store'].setLocale('pt-BR')
   globalThis.document = dom.window.document
   globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const { createRoot } = await import('react-dom/client')
@@ -274,3 +276,29 @@ test('equipe: sair aborta leitura pendente e ignora resposta tardia', async t =>
   assert.equal(document.body.textContent, '')
 })
 
+
+test('inglês preserva cargo, rascunho e BRL; confirmação mantém foco ao trocar idioma', async t => {
+  const ui = await mount(t, [record(1)])
+  await ui.fill('#novo-nome', 'João')
+  await ui.fill('#novo-cargo', 'Pedreiro')
+  await ui.fill('#nova-diaria', '150,50')
+  await act(() => base['@/lib/locale-store'].setLocale('en'))
+  assert.equal(ui.reads.length, 1)
+  assert.equal(document.querySelector('#nova-diaria').value, '150,50')
+  assert.match(document.body.textContent, /R\$150\.00/)
+  assert.match(document.body.textContent, /Pedreiro/)
+  await ui.create()
+  assert.equal(ui.writes[0].payload[0].nome, 'João')
+  assert.equal(ui.writes[0].payload[0].cargo, 'Pedreiro')
+  assert.equal(ui.writes[0].payload[0].valor_diaria, 150.5)
+  assert.equal(ui.notices.at(-1).props.children, 'Worker added!')
+  await act(() => namedButton('Delete João').click())
+  assert.match(document.querySelector('[role="group"]').textContent, /Project payment records will be kept/)
+  const focused = document.activeElement, reads = ui.reads.length
+  await act(() => base['@/lib/locale-store'].setLocale('pt-BR'))
+  assert.equal(document.activeElement, focused)
+  assert.equal(document.activeElement.textContent.trim(), 'Cancelar')
+  assert.equal(ui.reads.length, reads)
+  await ui.click('Cancelar')
+  assert.equal(document.activeElement.getAttribute('aria-label'), 'Excluir João')
+})

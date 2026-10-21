@@ -1,3 +1,4 @@
+import { createI18nDependencies } from './helpers/i18n.mjs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import * as React from 'react'
@@ -6,7 +7,7 @@ import * as icons from 'lucide-react'
 import { JSDOM } from 'jsdom'
 import { loadTs } from './helpers/load-ts.mjs'
 const { act, createElement: h } = React
-const base = { react: React, 'react/jsx-runtime': jsx }
+const base = { react: React, 'react/jsx-runtime': jsx, ...createI18nDependencies() }
 const loads = loadTs(new URL('../lib/load-data.ts', import.meta.url))
 const pages = loadTs(new URL('../lib/pagination.ts', import.meta.url), { './load-data': loads })
 const pagination = loadTs(new URL('../lib/project-pagination.ts', import.meta.url), { './pagination': pages })
@@ -22,6 +23,7 @@ function deferred() { let resolve; const promise = new Promise(done => { resolve
 async function mount(t, count = 45) {
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://app.example/projetos' })
   globalThis.window = dom.window
+  base['@/lib/locale-store'].setLocale('pt-BR')
   globalThis.document = dom.window.document
   globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const { createRoot } = await import('react-dom/client')
@@ -232,4 +234,51 @@ test('resposta após desmontagem não renderiza página pendente', async t => {
   assert.equal(request.signal.aborted, true)
   await act(() => d.resolve({ data: [record(1)], count: 21, error: null }))
   assert.equal(document.body.textContent, '')
+})
+
+test('idioma preserva página e rascunho; confirmação usa idioma atual sem novo envio', async t => {
+  const ui = await mount(t)
+  await ui.click('Próxima')
+  const reads = ui.reads.length
+  await act(() => document.querySelector('button[title="Editar"]').click())
+  await ui.fill('input[aria-label="Nome da Obra"]', 'Reforma {name} $& <b>')
+  await act(() => base['@/lib/locale-store'].setLocale('en'))
+  assert.equal(ui.reads.length, reads)
+  assert.match(document.body.textContent, /page 2 of 3/)
+  assert.equal(document.querySelector('input[aria-label="Project name"]').value, 'Reforma {name} $& <b>')
+  const d = deferred()
+  ui.setWrite(() => d.promise)
+  await ui.click('Save')
+  await act(() => base['@/lib/locale-store'].setLocale('pt-BR'))
+  assert.equal(ui.writes.length, 1)
+  await act(() => d.resolve({ data: { id: 25, titulo: 'Reforma {name} $& <b>', user_id: 'A', criado_em: '2026-01-01T12:00:00Z' }, error: null }))
+  assert.equal(ui.notices.at(-1), 'Nome atualizado!')
+  assert.equal(ui.writes[0].payload.titulo, 'Reforma {name} $& <b>')
+  assert.equal(ui.reads.length, reads)
+  await act(() => base['@/lib/locale-store'].setLocale('en'))
+  await act(() => document.querySelector('button[title="Delete"]').click())
+  assert.match(document.body.textContent, /All data for "Reforma \{name\} \$& <b>" will be lost/)
+  assert.equal(document.querySelector('b'), null)
+})
+
+test('erro de leitura e resultado incerto são traduzidos mantendo o bloqueio', async t => {
+  const ui = await mount(t)
+  await act(() => base['@/lib/locale-store'].setLocale('en'))
+  ui.setRead(() => Promise.resolve({ data: null, count: null, error: {} }))
+  await ui.click('Next')
+  assert.match(document.querySelector('[role="alert"]').textContent, /We could not load the data/)
+  ui.setRead(undefined)
+  await ui.click('Try again')
+  ui.setWrite(() => Promise.resolve({ data: null, error: null }))
+  await act(() => document.querySelector('button[title="Delete"]').click())
+  await ui.click('Yes, delete')
+  assert.equal(document.querySelector('fieldset').disabled, true)
+  assert.match(document.querySelector('[role="alert"]').textContent, /It may have completed on the server/)
+  assert.equal(ui.notices.at(-1).props.lang, 'en')
+  const writes = ui.writes.length, reads = ui.reads.length
+  await act(() => base['@/lib/locale-store'].setLocale('pt-BR'))
+  assert.equal(document.querySelector('fieldset').disabled, true)
+  assert.match(document.querySelector('[role="alert"]').textContent, /Ela pode ter sido concluída/)
+  assert.equal(ui.writes.length, writes)
+  assert.equal(ui.reads.length, reads)
 })

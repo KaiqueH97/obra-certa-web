@@ -1,3 +1,4 @@
+import { createI18nDependencies } from './helpers/i18n.mjs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import * as React from 'react'
@@ -7,7 +8,7 @@ import { JSDOM } from 'jsdom'
 import { loadTs } from './helpers/load-ts.mjs'
 
 const { act, createElement: h } = React
-const base = { react: React, 'react/jsx-runtime': jsx }
+const base = { react: React, 'react/jsx-runtime': jsx, ...createI18nDependencies() }
 const mutation = loadTs(new URL('../lib/confirmed-mutation.ts', import.meta.url))
 const guard = loadTs(new URL('../app/components/MutationGuard.tsx', import.meta.url), { ...base, '@/lib/confirmed-mutation': mutation })
 const loads = loadTs(new URL('../lib/load-data.ts', import.meta.url))

@@ -8,7 +8,7 @@ import { loadTs } from './helpers/load-ts.mjs'
 import { createI18nDependencies } from './helpers/i18n.mjs'
 
 const { act, createElement: h } = React
-const base = { react: React, 'react/jsx-runtime': jsx }
+const base = { react: React, 'react/jsx-runtime': jsx, ...createI18nDependencies() }
 const money = loadTs(new URL('../lib/money.ts', import.meta.url))
 const calculation = loadTs(new URL('../lib/material-calculation.ts', import.meta.url), { './money': money })
 const mutations = loadTs(new URL('../lib/confirmed-mutation.ts', import.meta.url))

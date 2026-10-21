@@ -1,3 +1,4 @@
+import { createI18nDependencies } from './helpers/i18n.mjs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import * as React from 'react'
@@ -7,7 +8,7 @@ import { createRoot } from 'react-dom/client'
 import { JSDOM } from 'jsdom'
 import { loadTs } from './helpers/load-ts.mjs'
 
-const base = { react: React, 'react/jsx-runtime': jsx }
+const base = { react: React, 'react/jsx-runtime': jsx, ...createI18nDependencies() }
 const loads = loadTs(new URL('../lib/load-data.ts', import.meta.url))
 const dashboard = loadTs(new URL('../lib/dashboard.ts', import.meta.url), { './load-data': loads })
 const hook = loadTs(new URL('../app/hooks/useDataLoad.ts', import.meta.url), { ...base, '@/lib/load-data': loads })
@@ -49,6 +50,7 @@ for (const [name, mutate] of [
 async function mount(t, initial) {
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://app.example/home' })
   globalThis.window = dom.window
+  base['@/lib/locale-store'].setLocale('pt-BR')
   globalThis.document = dom.window.document
   globalThis.IS_REACT_ACT_ENVIRONMENT = true
   let response = initial
@@ -113,4 +115,18 @@ test('resposta parcial não publica tabela nem indicadores', async t => {
   await mount(t, { data: { projetos: full().projetos }, error: null })
   assert.ok(document.querySelector('[role="alert"]'))
   assert.equal(document.querySelector('table'), null)
+})
+
+test('dashboard traduz sem repetir RPC e mantém moeda BRL e títulos cadastrados', async t => {
+  const ui = await mount(t, { data: full(), error: null })
+  await act(() => base['@/lib/locale-store'].setLocale('en'))
+  assert.equal(ui.calls.length, 1)
+  assert.equal(document.querySelector('h1').textContent, 'Project overview')
+  assert.match(document.body.textContent, /R\$120\.50/)
+  assert.match(document.body.textContent, /Pending tasks across your projects: 803/)
+  assert.match(document.body.textContent, /Obra 1205/)
+  assert.ok(document.querySelector('[lang="en"]'))
+  await act(() => base['@/lib/locale-store'].setLocale('pt-BR'))
+  assert.match(document.body.textContent, /120,50/)
+  assert.equal(ui.calls.length, 1)
 })

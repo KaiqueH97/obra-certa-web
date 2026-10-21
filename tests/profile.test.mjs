@@ -24,7 +24,7 @@ test('perfil tolera metadados antigos/inválidos sem quebrar render ou avatar', 
     const source = response()
     source.data.user.user_metadata = metadata
     const result = readProfile(source)
-    assert.equal(result.nome, 'Usuário')
+    assert.equal(result.nome, '')
     assert.equal(result.telefone, '')
     assert.equal(profileInitials(result.nome), 'OC')
   }

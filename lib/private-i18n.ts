@@ -147,7 +147,172 @@ const english = {
   "Informe um valor monetário.": "Enter a monetary value.",
   "O valor deve ser maior que zero.": "The value must be greater than zero.",
   "Usuário": "User",
-  "E-mail não informado": "Email not provided"
+  "E-mail não informado": "Email not provided",
+  "Calculadora Inteligente": "Material calculator",
+  "Some áreas, adicione quebras e estime materiais e custos em segundos.": "Add up areas, allow for waste and estimate materials and costs in seconds.",
+  "Superfície": "Surface",
+  "Selecione...": "Select...",
+  "Tipo de material": "Material type",
+  "Selecione o material": "Select a material",
+  "Escolha a superfície...": "Choose a surface...",
+  "Dimensões da Peça (Opcional)": "Tile dimensions (optional)",
+  "Comprimento (cm)": "Length (cm)",
+  "Largura (cm)": "Width (cm)",
+  "Ex: 60": "e.g. 60",
+  "Ex: 3": "e.g. 3",
+  "Ex: 4": "e.g. 4",
+  "Caderninho de Medições": "Measurements",
+  "Nova Área": "New area",
+  "Altura {index} (m)": "Height {index} (m)",
+  "Largura {index} (m)": "Width {index} (m)",
+  "Adicionar área": "Add area",
+  "Remover área {index}": "Remove area {index}",
+  "Preço por m² (Opcional)": "Price per m² (optional)",
+  "O preço é multiplicado pela área calculada, incluindo a margem quando aplicável. Ao salvar, ele compõe o custo de materiais da obra.": "The price is multiplied by the calculated area, including the waste allowance where applicable. When saved, it becomes part of the project's material costs.",
+  "Calcular Total": "Calculate total",
+  "Aguardando Medições": "Waiting for measurements",
+  "Preencha o formulário ao lado e clique em calcular para ver o detalhamento de materiais aqui.": "Fill in the form and select calculate to see the material estimate here.",
+  "Resultado Final": "Estimate result",
+  "Área total s/ quebra: {area} m²": "Total area before waste allowance: {area} m²",
+  "Estimativa de Peças:": "Estimated tiles:",
+  "~ {count} unidades": "~ {count} units",
+  "*Considerando peça de {length}x{width}cm": "*Based on a {length}x{width}cm tile",
+  "Custo Estimado:": "Estimated cost:",
+  "Vincular a uma Obra Ativa": "Link to an active project",
+  "Selecione um projeto...": "Select a project...",
+  "Salvar Material na Obra": "Save material to project",
+  "Selecione uma superfície e um material válidos.": "Select a valid surface and material.",
+  "Cálculo realizado com sucesso!": "Estimate calculated successfully!",
+  "Salvando material na obra...": "Saving material to project...",
+  "Material e preço salvos no projeto!": "Material and price saved to project!",
+  "m² (já c/ 10% de quebra)": "m² (including 10% waste allowance)",
+  "m² de forro": "m² of ceiling",
+  "m² (Consultar rendimento)": "m² (check product coverage)",
+  "Selecione uma superfície válida.": "Select a valid surface.",
+  "A quantidade ultrapassa o intervalo calculável. Confira as medidas.": "The quantity exceeds the supported range. Check the measurements.",
+  "Informe as duas dimensões da peça em centímetros, maiores que zero, ou deixe ambas vazias.": "Enter both tile dimensions in centimetres, greater than zero, or leave both blank.",
+  "Não foi possível estimar as peças. Confira suas dimensões.": "We could not estimate the number of tiles. Check their dimensions.",
+  "Confira o preço e as medidas antes de calcular o custo.": "Check the price and measurements before calculating the cost.",
+  "Adicione pelo menos uma área.": "Add at least one area.",
+  "A área ultrapassa o intervalo calculável. Confira as medidas.": "The area exceeds the supported range. Check the measurements.",
+  "A área total deve ser de pelo menos 0,01 m².": "The total area must be at least 0.01 m².",
+  "Preço por m²": "Price per m²",
+  "Preço do material": "Material price",
+  "Lançamento": "Transaction",
+  "Obra não encontrada ou sem acesso.": "Project not found or access denied.",
+  "Não foi possível validar sua sessão. Tente novamente ou entre novamente.": "We could not verify your session. Try again or sign in again.",
+  "Salvando preço...": "Saving price...",
+  "Preço salvo com sucesso!": "Price saved successfully!",
+  "Material atualizado!": "Material updated!",
+  "Removendo material...": "Removing material...",
+  "Material excluído!": "Material deleted!",
+  "Adicionando tarefa...": "Adding task...",
+  "Tarefa adicionada!": "Task added!",
+  "Atualizando tarefa...": "Updating task...",
+  "Tarefa atualizada!": "Task updated!",
+  "Preencha o valor e a descrição.": "Enter an amount and description.",
+  "Registrando no caixa...": "Recording transaction...",
+  "Lançamento registrado!": "Transaction recorded!",
+  "Removendo lançamento...": "Removing transaction...",
+  "Lançamento removido.": "Transaction removed.",
+  "Voltar para projetos": "Back to projects",
+  "Gestão de materiais, tarefas e caixa.": "Manage materials, tasks and cash flow.",
+  "Enviar Relatório (WhatsApp)": "Send report (WhatsApp)",
+  "Entradas": "Income",
+  "Materiais": "Materials",
+  "Equipe": "Team",
+  "Lucro Atual": "Current profit",
+  "Orçamento": "Budget",
+  "Caixa": "Cash flow",
+  "Tarefas": "Tasks",
+  "Lista de Materiais": "Material list",
+  "Nenhum material adicionado.": "No materials added.",
+  "Qtd": "Qty",
+  "Quantidade": "Quantity",
+  "Salvar material": "Save material",
+  "Custo Registrado": "Recorded cost",
+  "O material e seu custo serão removidos permanentemente deste orçamento.": "The material and its cost will be permanently removed from this budget.",
+  "Pedir Cotação no WhatsApp": "Request a quote on WhatsApp",
+  "Caixa da Obra": "Project cash flow",
+  "Entrada: Dinheiro do Cliente": "Income: Client payment",
+  "Saída: Pagamento da Equipe": "Expense: Team payment",
+  "Selecione o profissional...": "Select a worker...",
+  "Ex: Sinal / 1ª Parcela": "e.g. Deposit / First instalment",
+  "Ex: Adiantamento / 3 dias": "e.g. Advance / 3 days",
+  "Lançar no Caixa": "Record transaction",
+  "Nenhuma movimentação.": "No transactions.",
+  "Recebimento": "Client payment",
+  "Checklist da Obra": "Project checklist",
+  "O que precisa ser feito?": "What needs to be done?",
+  "Sua lista está vazia.": "Your list is empty.",
+  "Tipo de lançamento": "Transaction type",
+  "Profissional": "Worker",
+  "Descrição": "Description",
+  "Valor em reais": "Amount in BRL",
+  "Adicionar tarefa": "Add task",
+  "Piso": "Floor",
+  "Parede": "Wall",
+  "Revestimento": "Wall finish",
+  "Reboco": "Plastering",
+  "Contrapiso": "Screed",
+  "Laje": "Slab",
+  "Forro": "Ceiling",
+  "Telhado": "Roof",
+  "Pintura": "Painting",
+  "Impermeabilização": "Waterproofing",
+  "Porcelanato": "Porcelain tile",
+  "Cerâmica": "Ceramic tile",
+  "Laminado": "Laminate",
+  "Cimentício": "Cement tile",
+  "Vinílico": "Vinyl",
+  "Emborrachado": "Rubber flooring",
+  "Pedras Naturais": "Natural stone",
+  "Epóxi (Porcelanato Líquido)": "Epoxy flooring",
+  "Bloco cerâmico": "Clay block",
+  "Drywall": "Drywall",
+  "Bloco de concreto": "Concrete block",
+  "Tijolo ecológico": "Soil-cement brick",
+  "Tijolinho maciço": "Solid brick",
+  "Placa Cimentícia": "Cement board",
+  "Textura tradicional": "Traditional textured coating",
+  "Textura Projetada": "Spray-applied textured coating",
+  "Monocapa": "Single-coat render",
+  "Massa Corrida": "Wall filler",
+  "Cerâmica/Azulejo": "Ceramic wall tile",
+  "Pastilhas": "Mosaic tile",
+  "Tradicional (Cimento e Areia)": "Traditional (cement and sand)",
+  "Projetado": "Spray-applied plaster",
+  "Gesso": "Gypsum plaster",
+  "Argamassa Polimérica": "Polymer mortar",
+  "Cimento": "Cement",
+  "Argamassa niveladora": "Levelling mortar",
+  "Argamassa Autonivelante": "Self-levelling mortar",
+  "Concreto Usinado": "Ready-mix concrete",
+  "Concreto armado": "Reinforced concrete",
+  "Lajota cerâmica": "Clay infill block",
+  "Pré-moldada (treliçada)": "Precast lattice slab",
+  "EPS (Isopor)": "EPS foam",
+  "Laje Maciça": "Solid slab",
+  "Gesso acartonado (Drywall)": "Plasterboard (drywall)",
+  "Gesso em placas": "Gypsum panels",
+  "PVC": "PVC",
+  "Madeira": "Wood",
+  "Metálico": "Metal",
+  "Fibra Mineral (Acústico)": "Mineral fibre (acoustic)",
+  "Telha Cerâmica (Barro)": "Clay roof tile",
+  "Telha de Fibrocimento": "Fibre cement roofing",
+  "Telha Metálica": "Metal roofing",
+  "Shingle": "Shingle",
+  "Telha Ecológica (Tetra Pak)": "Recycled carton roofing",
+  "Policarbonato": "Polycarbonate",
+  "Tinta Acrílica": "Acrylic paint",
+  "Tinta Látex (PVA)": "Latex paint (PVA)",
+  "Tinta Epóxi": "Epoxy paint",
+  "Esmalte Sintético": "Synthetic enamel",
+  "Selador/Fundo Preparador": "Sealer / Primer",
+  "Manta Asfáltica": "Bituminous membrane",
+  "Manta Líquida": "Liquid membrane",
+  "Emulsão Asfáltica": "Bituminous emulsion"
 } as const;
 
 export type PrivateMessageKey = keyof typeof english;
@@ -164,6 +329,15 @@ export function privateMessage(locale: Locale, message: string): { text: string;
   if (Object.hasOwn(english, message)) {
     return { text: privateText(locale, message as PrivateMessageKey), lang: locale };
   }
+  if (locale === "en") {
+    const area = /^Área (\d+): informe altura e largura maiores que zero, como 3,50 ou 3\.50, sem unidades ou separador de milhar\.$/.exec(message);
+    if (area) return { text: `Area ${area[1]}: enter height and width greater than zero, such as 3.50 or 3,50, without units or thousands separators.`, lang: "en" };
+    const prefixed = /^(Preço por m²|Preço do material|Lançamento): (.+)$/.exec(message);
+    if (prefixed) {
+      const detail = privateMessage(locale, prefixed[2]);
+      if (detail.lang === "en") return { text: `${privateText(locale, prefixed[1] as PrivateMessageKey)}: ${detail.text}`, lang: "en" };
+    }
+  }
   return { text: message, lang: "pt-BR" };
 }
 
@@ -171,4 +345,21 @@ export function formatBRL(locale: Locale, value: number): string {
   return new Intl.NumberFormat(locale === "en" ? "en-US" : "pt-BR", {
     style: "currency", currency: "BRL",
   }).format(value);
+}
+
+// Somente o texto do relatório é traduzido; conteúdo cadastrado permanece literal.
+export function materialQuote(locale: Locale, data: {
+  worker: string; project: string; phone: string;
+  materials: ReadonlyArray<{ nome: string; quantidade: string }>;
+}): string {
+  const worker = data.worker || privateText(locale, "Profissional");
+  const intro = locale === "en"
+    ? `Hello! This is ${worker}. 👷‍♂️\nHere is the updated material list for the project: *${data.project}*\n\n*📋 MATERIAL LIST:*\n`
+    : `Olá! Aqui é o ${worker}. 👷‍♂️\nSegue a relação de materiais atualizada para a obra: *${data.project}*\n\n*📋 LISTA DE MATERIAIS:*\n`;
+  const items = data.materials.map(item => `▪️ *${item.nome}:* ${item.quantidade}\n`).join("");
+  const footer = locale === "en"
+    ? "\n*💡 Obra Certa:* Smart planning, transparency and no waste.\nFeel free to ask if you have any questions about the measurements!\n"
+    : "\n*💡 Obra Certa:* Planejamento inteligente, transparência e sem desperdício.\nQualquer dúvida sobre as medidas, estou à disposição!\n";
+  const contact = data.phone ? `📞 ${locale === "en" ? "Contact" : "Contato"}: ${data.phone}` : "";
+  return intro + items + footer + contact;
 }

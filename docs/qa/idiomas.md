@@ -59,17 +59,30 @@ preferência. Mensagens ainda não catalogadas mantêm o texto original com `lan
 No perfil, nome/e-mail ausentes recebem fallback apenas na apresentação: o campo
 de edição não é preenchido com “Usuário” ou “User”.
 
+A calculadora interna e os detalhes da obra também acompanham o idioma:
+
+- Superfícies, tipos de materiais, medidas, resultado, unidades e validações.
+- Orçamento, caixa, tarefas, confirmações, notificações e controles acessíveis.
+- Custos exibidos em BRL e números da estimativa formatados conforme o idioma.
+- Introdução, cabeçalho e encerramento do relatório para WhatsApp no idioma atual.
+  O botão abre o WhatsApp com o texto preenchido; o envio continua sendo manual.
+
+Os valores das opções da calculadora e o formato persistido das quantidades foram
+preservados. Por exemplo, “Porcelain tile” salva `Porcelanato`; uma estimativa pode
+continuar gravada como `13,20 m² (já c/ 10% de quebra) (~37 peças)`. Nos detalhes e
+no WhatsApp, nomes e quantidades cadastrados são conteúdo literal, sem tradução
+por reconhecimento de palavras. Não há migração dos dados existentes. Nomes,
+descrições, tarefas e valores digitados permanecem intactos ao trocar o idioma.
+
 ## Escopo pendente
 
-O aplicativo ainda não está integralmente em inglês. Calculadora interna, detalhes
-da obra, mensagens específicas desses fluxos, monitor de rede e tela offline continuam em português.
+O aplicativo ainda não está integralmente em inglês. Monitor de rede e tela offline
+continuam em português.
 Manifesto PWA e descrição de metadados também precisam ser tratados nas próximas etapas.
 
 Próximos commits sugeridos:
 
-1. Traduzir calculadora e detalhes da obra, incluindo mensagens compartilhadas,
-   textos gerados para WhatsApp, datas e números com `Intl` mantendo BRL.
-2. Completar PWA/metadados e idioma global do documento; verificar telas mobile
+1. Completar PWA/metadados e idioma global do documento; verificar telas mobile
    e fluxos completos em inglês e português.
 
 ## Validação
@@ -132,5 +145,27 @@ Roteiro manual:
 Os testes de dashboard, perfil, projetos e equipe incluem cenários bilíngues de
 paginação, rascunho, foco, falha de leitura e gravação em andamento. As chamadas ao
 Supabase são simuladas; não alteram dados reais.
+
+18. Em `/calcular`, selecione piso/porcelanato, área de 3 x 4 m, peça de 60 x 60 cm
+    e preço de `10,50`. Calcule e selecione uma obra de teste. Troque para inglês:
+    deve manter os campos, a obra e o resultado, mostrando “Porcelain tile”,
+    `13.20`, `37 units` e `R$138.60`. Salve uma única vez e confira na obra.
+19. Informe altura negativa, dimensão de peça incompleta ou preço inválido.
+    Confira as validações em inglês, sem oferecer salvar resultado inválido.
+20. Nos detalhes da obra, selecione caixa no celular, digite descrição e valor
+    e alterne o idioma: a aba e o rascunho devem permanecer. Com rede lenta,
+    alterne durante um lançamento de teste; deve haver apenas um envio e a
+    notificação final deve usar o idioma selecionado naquele momento.
+21. Confira custos em BRL, nomes e tarefas originais, rótulos dos campos e botões.
+    Abra a confirmação de excluir material, troque o idioma e cancele: o foco
+    deve retornar ao botão correspondente, sem excluir o material.
+22. Abra o relatório do WhatsApp em cada idioma. Confira apresentação traduzida,
+    título, nome do profissional, contato, materiais e quantidades preservados.
+    Não é necessário enviar a mensagem para validar o texto.
+
+`npm run test:calculator`, `npm run test:deletions` e `npm run test:mutations`
+cobrem os fluxos desta etapa, incluindo gravação em inglês, troca durante envio,
+foco, abas e relatório para WhatsApp. As integrações são simuladas e não enviam
+mensagens nem alteram dados reais.
 
 Nenhum SQL ou alteração de configuração do Supabase é necessário nesta etapa.

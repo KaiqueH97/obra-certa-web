@@ -17,6 +17,7 @@ const guard = loadTs(new URL('../app/components/MutationGuard.tsx', import.meta.
 async function mount(t, landing = false, saveResponse = { data: { id: 1 }, error: null }, timeoutMs = 20000) {
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://app.example/calcular' })
   globalThis.window = dom.window
+  base['@/lib/locale-store'].setLocale('pt-BR')
   globalThis.document = dom.window.document
   globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const { createRoot } = await import('react-dom/client')
@@ -140,4 +141,40 @@ test('calculadora preserva estimativa e bloqueia outro salvamento após timeout'
   assert.ok(document.getElementById('projeto-calculo'))
   assert.equal(save().matches(':disabled'), true)
   assert.equal(ui.writes.length, 1)
+})
+
+test('calculadora traduz opções e estimativa sem alterar seleção, medidas ou payload salvo', async t => {
+  const ui = await mount(t)
+  await ui.prepare()
+  await ui.fill('preco-metro', '10,50')
+  await ui.fill('comprimento-peca', '60'); await ui.fill('largura-peca', '60')
+  await ui.submit()
+  await ui.fill('projeto-calculo', '42')
+  await act(() => base['@/lib/locale-store'].setLocale('en'))
+  assert.equal(document.querySelector('#material').value, 'Porcelanato')
+  assert.equal(document.querySelector('#material option:checked').textContent, 'Porcelain tile')
+  assert.equal(document.querySelector('#superficie option:checked').textContent, 'Floor')
+  assert.equal(document.querySelector('#preco-metro').value, '10,50')
+  assert.equal(document.querySelector('#projeto-calculo').value, '42')
+  assert.match(document.body.textContent, /13.20/)
+  assert.match(document.body.textContent, /including 10% waste allowance/)
+  assert.match(document.body.textContent, /R\$138\.60/)
+  assert.match(document.body.textContent, /37 units/)
+  await act(() => [...document.querySelectorAll('button')].find(b => b.textContent.includes('Save material to project')).click())
+  assert.equal(ui.writes.length, 1)
+  assert.equal(ui.writes[0].rows[0].nome, 'Porcelanato')
+  assert.equal(ui.writes[0].rows[0].quantidade, '13,20 m² (já c/ 10% de quebra) (~37 peças)')
+  assert.equal(ui.writes[0].rows[0].preco_total, 138.6)
+})
+
+test('validações da calculadora em inglês mantêm identificação da área e regras monetárias', async t => {
+  const ui = await mount(t)
+  await ui.prepare()
+  await act(() => base['@/lib/locale-store'].setLocale('en'))
+  await ui.fill('altura-1', '-3'); await ui.submit()
+  assert.match(ui.notices.at(-1).props.children, /Area 1: enter height and width greater than zero/)
+  await ui.fill('altura-1', '3'); await ui.fill('preco-metro', 'abc'); await ui.submit()
+  assert.match(ui.notices.at(-1).props.children, /Price per m²: Use a value/)
+  assert.equal(ui.notices.at(-1).props.lang, 'en')
+  assert.equal(ui.writes.length, 0)
 })

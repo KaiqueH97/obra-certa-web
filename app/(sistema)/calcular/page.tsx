@@ -1,5 +1,9 @@
 "use client";
 
+import { usePrivateLocale } from "@/app/hooks/usePrivateLocale";
+import { formatNumber } from "@/lib/i18n";
+import { formatBRL } from "@/lib/private-i18n";
+
 import { useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useDataLoad } from "@/app/hooks/useDataLoad";
@@ -55,6 +59,9 @@ const OPCOES_MATERIAIS: Record<string, { nome: string; tipos: string[] }> = {
 };
 
 export default function Calculadora() {
+  const { locale, p, message } = usePrivateLocale();
+  const notice = (text: string) => locale === "pt-BR" ? text : <span lang={message(text).lang}>{message(text).text}</span>;
+  const displayDecimal = (value: string) => formatNumber(locale, Number(value.replace(",", ".")), 2);
   const { run, isBusy: salvando, requiresReload } = useConfirmedMutation();
   const [superficie, setSuperficie] = useState("");
   const [material, setMaterial] = useState("");
@@ -94,14 +101,14 @@ export default function Calculadora() {
     e.preventDefault();
     setResultado(null);
     if (!Object.hasOwn(OPCOES_MATERIAIS, superficie) || !OPCOES_MATERIAIS[superficie].tipos.includes(material)) {
-      toast.error("Selecione uma superfície e um material válidos.");
+      toast.error(notice("Selecione uma superfície e um material válidos."));
       return;
     }
     const calculo = calculateMaterial({ superficie, medidas, comprimentoPiso, larguraPiso, precoUnitario });
-    if (!calculo.ok) return toast.error(calculo.error);
+    if (!calculo.ok) return toast.error(notice(calculo.error));
     setResultado({ ...calculo.value, materialNome: material });
 
-    toast.success("Cálculo realizado com sucesso!");
+    toast.success(notice("Cálculo realizado com sucesso!"));
   };
 
   const salvarNoProjeto = async () => {
@@ -131,7 +138,7 @@ export default function Calculadora() {
 
   return (
     <MutationGuard blocked={requiresReload}>
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div lang={locale} className="space-y-6 animate-in fade-in duration-500">
       
       {/* HEADER */}
       <div className="bg-white p-6 rounded-2xl border border-zinc-100 shadow-sm flex items-center gap-4">
@@ -139,8 +146,8 @@ export default function Calculadora() {
           <Calculator size={32} />
         </div>
         <div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-zinc-900 tracking-tight">Calculadora Inteligente</h1>
-          <p className="text-sm md:text-base text-zinc-500 mt-1">Some áreas, adicione quebras e estime materiais e custos em segundos.</p>
+          <h1 className="text-2xl md:text-3xl font-extrabold text-zinc-900 tracking-tight">{p("Calculadora Inteligente")}</h1>
+          <p className="text-sm md:text-base text-zinc-500 mt-1">{p("Some áreas, adicione quebras e estime materiais e custos em segundos.")}</p>
         </div>
       </div>
 
@@ -154,7 +161,7 @@ export default function Calculadora() {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="superficie" className="block text-zinc-900 text-sm font-bold mb-2">Superfície</label>
+                <label htmlFor="superficie" className="block text-zinc-900 text-sm font-bold mb-2">{p("Superfície")}</label>
                 <select 
                   id="superficie"
                   className="w-full p-4 md:p-3 border border-zinc-300 rounded-xl text-zinc-900 bg-white focus:ring-2 focus:ring-orange-600 outline-none transition-all"
@@ -165,15 +172,15 @@ export default function Calculadora() {
                   }}
                   required
                 >
-                  <option value="" disabled hidden>Selecione...</option>
+                  <option value="" disabled hidden>{p("Selecione...")}</option>
                   {Object.entries(OPCOES_MATERIAIS).map(([chave, obj]) => (
-                    <option key={chave} value={chave}>{obj.nome}</option>
+                    <option key={chave} value={chave}>{message(obj.nome).text}</option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label htmlFor="material" className="block text-zinc-900 text-sm font-bold mb-2">Tipo de material</label>
+                <label htmlFor="material" className="block text-zinc-900 text-sm font-bold mb-2">{p("Tipo de material")}</label>
                 <select
                   id="material"
                   className="w-full p-4 md:p-3 border border-zinc-300 rounded-xl text-zinc-900 bg-white focus:ring-2 focus:ring-orange-600 outline-none disabled:bg-zinc-100 disabled:text-zinc-400 transition-all"
@@ -183,10 +190,10 @@ export default function Calculadora() {
                   disabled={!superficie}
                 >
                   <option value="" disabled hidden>
-                    {superficie ? "Selecione o material" : "Escolha a superfície..."}
+                    {superficie ? p("Selecione o material") : p("Escolha a superfície...")}
                   </option>
                   {superficie && OPCOES_MATERIAIS[superficie].tipos.map((tipo) => (
-                    <option key={tipo} value={tipo}>{tipo}</option>
+                    <option key={tipo} value={tipo}>{message(tipo).text}</option>
                   ))}
                 </select>
               </div>
@@ -196,11 +203,11 @@ export default function Calculadora() {
             {superficie === "piso" && (
               <div className="bg-orange-50 p-4 md:p-5 rounded-xl border border-orange-200 animate-in fade-in">
                 <p className="text-orange-800 font-bold text-sm mb-3 flex items-center gap-2">
-                  <Ruler size={16} /> Dimensões da Peça (Opcional)
+                  <Ruler size={16} /> {p("Dimensões da Peça (Opcional)")}
                 </p>
                 <div className="flex gap-4">
                   <div className="flex-1">
-                    <label htmlFor="comprimento-peca" className="block text-orange-900 text-xs font-bold mb-1">Comprimento (cm)</label>
+                    <label htmlFor="comprimento-peca" className="block text-orange-900 text-xs font-bold mb-1">{p("Comprimento (cm)")}</label>
                     <input
                       id="comprimento-peca"
                       type="text"
@@ -208,11 +215,11 @@ export default function Calculadora() {
                       className="w-full p-3 border border-orange-300 rounded-lg bg-white text-zinc-900 text-sm focus:ring-2 focus:ring-orange-600 outline-none"
                       value={comprimentoPiso}
                       onChange={(e) => setComprimentoPiso(e.target.value)}
-                      placeholder="Ex: 60"
+                      placeholder={p("Ex: 60")}
                     />
                   </div>
                   <div className="flex-1">
-                    <label htmlFor="largura-peca" className="block text-orange-900 text-xs font-bold mb-1">Largura (cm)</label>
+                    <label htmlFor="largura-peca" className="block text-orange-900 text-xs font-bold mb-1">{p("Largura (cm)")}</label>
                     <input
                       id="largura-peca"
                       type="text"
@@ -220,7 +227,7 @@ export default function Calculadora() {
                       className="w-full p-3 border border-orange-300 rounded-lg bg-white text-zinc-900 text-sm focus:ring-2 focus:ring-orange-600 outline-none"
                       value={larguraPiso}
                       onChange={(e) => setLarguraPiso(e.target.value)}
-                      placeholder="Ex: 60"
+                      placeholder={p("Ex: 60")}
                     />
                   </div>
                 </div>
@@ -230,13 +237,13 @@ export default function Calculadora() {
             {/* O CADERNINHO DIGITAL (Medições) */}
             <div className="pt-2">
               <div className="flex justify-between items-center mb-4">
-                <label className="block text-zinc-900 text-lg font-bold">Caderninho de Medições</label>
+                <label className="block text-zinc-900 text-lg font-bold">{p("Caderninho de Medições")}</label>
                 <button 
                   type="button" 
                   onClick={adicionarMedida}
                   className="flex items-center gap-1 text-sm bg-orange-100 text-orange-700 px-4 py-2 rounded-full font-bold hover:bg-orange-200 transition-colors"
                 >
-                  <Plus size={16} /> Nova Área
+                  <Plus size={16} /> {p("Nova Área")}
                 </button>
               </div>
 
@@ -245,7 +252,7 @@ export default function Calculadora() {
                   <div key={medida.id} className="flex gap-2 items-end bg-zinc-50 p-3 md:p-4 rounded-xl border border-zinc-200 animate-in slide-in-from-left-2">
                     
                     <div className="w-full">
-                      <label htmlFor={`altura-${medida.id}`} className="block text-zinc-600 text-xs font-bold mb-1">Altura {index + 1} (m)</label>
+                      <label htmlFor={`altura-${medida.id}`} className="block text-zinc-600 text-xs font-bold mb-1">{p("Altura {index} (m)", { index: index + 1 })}</label>
                       <input
                         id={`altura-${medida.id}`}
                         type="text"
@@ -253,13 +260,13 @@ export default function Calculadora() {
                         className="w-full p-4 md:p-3 border border-zinc-300 rounded-lg text-base md:text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 transition-all"
                         value={medida.altura}
                         onChange={(e) => atualizarMedida(medida.id, "altura", e.target.value)}
-                        placeholder="Ex: 3"
+                        placeholder={p("Ex: 3")}
                         required
                       />
                     </div>
                     
                     <div className="w-full">
-                      <label htmlFor={`largura-${medida.id}`} className="block text-zinc-600 text-xs font-bold mb-1">Largura {index + 1} (m)</label>
+                      <label htmlFor={`largura-${medida.id}`} className="block text-zinc-600 text-xs font-bold mb-1">{p("Largura {index} (m)", { index: index + 1 })}</label>
                       <input
                         id={`largura-${medida.id}`}
                         type="text"
@@ -267,7 +274,7 @@ export default function Calculadora() {
                         className="w-full p-4 md:p-3 border border-zinc-300 rounded-lg text-base md:text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 transition-all"
                         value={medida.largura}
                         onChange={(e) => atualizarMedida(medida.id, "largura", e.target.value)}
-                        placeholder="Ex: 4"
+                        placeholder={p("Ex: 4")}
                         required
                       />
                     </div>
@@ -275,7 +282,7 @@ export default function Calculadora() {
                     <div className="flex gap-1 shrink-0">
                       <button
                         type="button"
-                        aria-label="Adicionar área"
+                        aria-label={p("Adicionar área")}
                         onClick={adicionarMedida}
                         className="bg-zinc-200 text-zinc-700 h-14 w-12 md:h-11 md:w-11 rounded-lg font-black text-xl hover:bg-zinc-300 transition-colors flex items-center justify-center"
                       >
@@ -285,7 +292,7 @@ export default function Calculadora() {
                       {medidas.length > 1 && (
                         <button
                           type="button"
-                          aria-label={`Remover área ${index + 1}`}
+                          aria-label={p("Remover área {index}", { index: index + 1 })}
                           onClick={() => removerMedida(medida.id)}
                           className="bg-red-100 text-red-600 h-14 w-12 md:h-11 md:w-11 rounded-lg font-bold hover:bg-red-200 transition-colors flex items-center justify-center"
                         >
@@ -301,7 +308,7 @@ export default function Calculadora() {
             {/* NOVO CAMPO: Valor por m2/Unidade */}
             <div className="bg-emerald-50 p-4 md:p-5 rounded-xl border border-emerald-200 mt-2">
                <label htmlFor="preco-metro" className="block text-emerald-900 text-sm font-bold mb-2 items-center gap-1">
-                 <DollarSign size={16} /> Preço por m² (Opcional)
+                 <DollarSign size={16} /> {p("Preço por m² (Opcional)")}
                </label>
                <div className="flex items-center bg-white border border-emerald-300 rounded-lg px-3 focus-within:ring-2 focus-within:ring-emerald-600 transition-all shadow-sm">
                  <span className="text-emerald-700 font-bold text-sm">R$</span>
@@ -312,10 +319,10 @@ export default function Calculadora() {
                    className="w-full p-3 outline-none text-zinc-900 bg-transparent text-right font-bold"
                    value={precoUnitario}
                    onChange={(e) => setPrecoUnitario(e.target.value)}
-                   placeholder="0,00"
+                   placeholder={p("0,00")}
                  />
                </div>
-               <p className="text-xs text-emerald-700 mt-2 font-medium">O preço é multiplicado pela área calculada, incluindo a margem quando aplicável. Ao salvar, ele compõe o custo de materiais da obra.</p>
+               <p className="text-xs text-emerald-700 mt-2 font-medium">{p("O preço é multiplicado pela área calculada, incluindo a margem quando aplicável. Ao salvar, ele compõe o custo de materiais da obra.")}</p>
             </div>
 
             <button
@@ -323,7 +330,7 @@ export default function Calculadora() {
               className="w-full flex items-center justify-center gap-2 bg-zinc-900 text-white font-bold p-5 md:p-4 rounded-xl text-xl md:text-lg hover:bg-zinc-800 transition-colors mt-2 shadow-sm"
             >
               <Calculator size={24} />
-              Calcular Total
+              {p("Calcular Total")}
             </button>
             </fieldset>
           </form>
@@ -335,8 +342,8 @@ export default function Calculadora() {
             {!resultado ? (
               <div className="bg-zinc-50 border border-zinc-200 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center text-center h-full min-h-75">
                 <Calculator size={48} className="text-zinc-300 mb-4" />
-                <h3 className="text-zinc-500 font-bold text-lg">Aguardando Medições</h3>
-                <p className="text-zinc-400 text-sm mt-2 max-w-xs">Preencha o formulário ao lado e clique em calcular para ver o detalhamento de materiais aqui.</p>
+                <h3 className="text-zinc-500 font-bold text-lg">{p("Aguardando Medições")}</h3>
+                <p className="text-zinc-400 text-sm mt-2 max-w-xs">{p("Preencha o formulário ao lado e clique em calcular para ver o detalhamento de materiais aqui.")}</p>
               </div>
             ) : (
               <div className="bg-white rounded-2xl border border-emerald-200 shadow-lg overflow-hidden animate-in slide-in-from-bottom-4">
@@ -344,41 +351,41 @@ export default function Calculadora() {
                 <div className="bg-emerald-50 p-6 border-b border-emerald-100">
                   <div className="flex items-center gap-2 text-emerald-800 mb-4">
                     <CheckCircle2 size={24} />
-                    <h3 className="font-bold text-xl">Resultado Final</h3>
+                    <h3 className="font-bold text-xl">{p("Resultado Final")}</h3>
                   </div>
                   
                   <p className="text-emerald-700 text-sm font-semibold mb-1 uppercase tracking-wide">
-                    {superficie} • {resultado.materialNome}
+                    {message(OPCOES_MATERIAIS[superficie].nome).text} • {message(resultado.materialNome).text}
                   </p>
                   <div className="flex items-baseline gap-2 text-emerald-950">
-                    <span className="text-5xl font-black tracking-tight">{resultado.quantidade}</span>
-                    <span className="text-xl font-bold">{resultado.unidade}</span>
+                    <span className="text-5xl font-black tracking-tight">{displayDecimal(resultado.quantidade)}</span>
+                    <span className="text-xl font-bold">{message(resultado.unidade).text}</span>
                   </div>
                   
                   <p className="text-sm text-emerald-700 mt-3 font-medium flex items-center gap-1">
-                    <Ruler size={14} /> Área total s/ quebra: {resultado.area} m²
+                    <Ruler size={14} /> {p("Área total s/ quebra: {area} m²", { area: displayDecimal(resultado.area) })}
                   </p>
                 </div>
 
                 {resultado.totalPecas !== undefined && (
                   <div className="bg-emerald-100/50 p-4 border-b border-emerald-100">
-                    <p className="text-emerald-800 font-bold text-sm mb-1">Estimativa de Peças:</p>
-                    <p className="text-2xl font-black text-emerald-950">~ {resultado.totalPecas} unidades</p>
-                    <p className="text-xs text-emerald-600 italic mt-1">*Considerando peça de {comprimentoPiso}x{larguraPiso}cm</p>
+                    <p className="text-emerald-800 font-bold text-sm mb-1">{p("Estimativa de Peças:")}</p>
+                    <p className="text-2xl font-black text-emerald-950">{p("~ {count} unidades", { count: formatNumber(locale, resultado.totalPecas, 0) })}</p>
+                    <p className="text-xs text-emerald-600 italic mt-1">{p("*Considerando peça de {length}x{width}cm", { length: comprimentoPiso, width: larguraPiso })}</p>
                   </div>
                 )}
 
                 {/* VISUAL NO RESULTADO: Exibição do Custo Total */}
                 {resultado.precoTotalEstimado > 0 && (
                   <div className="bg-emerald-600 p-4 border-b border-emerald-700 flex justify-between items-center text-white">
-                    <p className="font-bold text-sm text-emerald-100 uppercase tracking-wider">Custo Estimado:</p>
-                    <p className="text-2xl font-black">R$ {resultado.precoTotalEstimado.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                    <p className="font-bold text-sm text-emerald-100 uppercase tracking-wider">{p("Custo Estimado:")}</p>
+                    <p className="text-2xl font-black">{formatBRL(locale, resultado.precoTotalEstimado)}</p>
                   </div>
                 )}
 
                 <div className="p-6 bg-white">
                   <label htmlFor="projeto-calculo" className="block text-sm font-bold mb-3 text-zinc-900 items-center gap-2">
-                    <Building2 size={16} className="text-orange-600"/> Vincular a uma Obra Ativa
+                    <Building2 size={16} className="text-orange-600"/> {p("Vincular a uma Obra Ativa")}
                   </label>
                   
                   {!ready && <LoadFeedback error={error} retry={retry} />}
@@ -388,9 +395,9 @@ export default function Calculadora() {
                     disabled={!ready || salvando} value={projetoSelecionado}
                     onChange={(e) => setProjetoSelecionado(e.target.value)}
                   >
-                    <option value="" disabled hidden>Selecione um projeto...</option>
+                    <option value="" disabled hidden>{p("Selecione um projeto...")}</option>
                     {!ready ? null : projetos.length === 0 ? (
-                      <option disabled>Nenhum projeto encontrado.</option>
+                      <option disabled>{p("Nenhum projeto encontrado.")}</option>
                     ) : (
                       projetos.map((proj) => (
                         <option key={proj.id} value={proj.id}>
@@ -406,7 +413,7 @@ export default function Calculadora() {
                     className="w-full flex items-center justify-center gap-2 bg-orange-600 text-white p-4 md:p-3 rounded-xl md:text-lg font-bold hover:bg-orange-700 disabled:opacity-50 disabled:bg-zinc-300 disabled:text-zinc-500 transition-colors shadow-sm"
                   >
                     <Save size={20} />
-                    {salvando ? "Salvando..." : "Salvar Material na Obra"}
+                    {salvando ? p("Salvando...") : p("Salvar Material na Obra")}
                   </button>
                 </div>
 

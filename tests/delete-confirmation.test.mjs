@@ -4,7 +4,6 @@ import test from 'node:test'
 import * as React from 'react'
 import * as jsx from 'react/jsx-runtime'
 import * as icons from 'lucide-react'
-import { createRoot } from 'react-dom/client'
 import { JSDOM } from 'jsdom'
 import { loadTs } from './helpers/load-ts.mjs'
 
@@ -38,8 +37,11 @@ const cases = [
 async function mount(t, config, timeoutMs = 20000) {
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://app.example/home', pretendToBeVisual: true })
   globalThis.window = dom.window
+  base['@/lib/locale-store'].setLocale('pt-BR')
   globalThis.document = dom.window.document
   globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  const { createRoot } = await import('react-dom/client')
+  const reads = []
   const notices = []
   const requests = []
   const destinations = []
@@ -61,6 +63,8 @@ async function mount(t, config, timeoutMs = 20000) {
       const query = { table, filters: [] }
       const chain = {
         delete() { query.operation = 'delete'; return chain },
+        insert(payload) { query.operation = 'insert'; query.payload = payload; return chain },
+        update(payload) { query.operation = 'update'; query.payload = payload; return chain },
         eq(column, value) { query.filters.push([column, value]); return chain },
         select(columns) { query.columns = columns; return chain },
         order() { return chain },
@@ -87,7 +91,7 @@ async function mount(t, config, timeoutMs = 20000) {
     '@/lib/confirmed-mutation': mutation, '@/app/hooks/useConfirmedMutation': actions, '@/app/components/MutationGuard': guard,
     '@/app/components/DeleteConfirmation': confirmation, '@/app/components/LoadFeedback': feedback,
     '@/app/hooks/useDataLoad': config.name === 'equipe' ? loadHooks : { useDataLoad: function useFakeDataLoad(load, apply) {
-      React.useEffect(() => { apply(config.data) }, [apply])
+      React.useEffect(() => { reads.push(config.data); apply(config.data) }, [apply])
       return { ready: true, loading: false, error: null, retry() {} }
     } },
   })
@@ -112,7 +116,7 @@ async function mount(t, config, timeoutMs = 20000) {
   const cancel = () => group().querySelectorAll('button')[0]
   const confirm = () => group().querySelectorAll('button')[1]
   return {
-    trigger, group, cancel, confirm, requests, notices, destinations,
+    trigger, group, cancel, confirm, requests, notices, destinations, reads,
     open: () => act(() => trigger().click()),
     setResponse: value => { response = value },
     leave: () => act(() => root.render(h(PrivateSessionBoundary, null, h('p', null, 'Outra página')))),
@@ -250,3 +254,63 @@ for (const config of cases) {
     assert.deepEqual(ui.notices.map(item => item[0]), ['loading', 'error'])
   })
 }
+
+test('detalhes: idioma preserva dados, aba, confirmação e texto cadastrado no WhatsApp', async t => {
+  const config = { ...cases[1], data: { ...cases[1].data,
+    tarefas: [{ id: 2, nome: 'Pintar cozinha', concluida: false, projeto_id: 42 }],
+    transacoes: [{ id: 9, tipo: 'RECEBIMENTO_CLIENTE', valor: 1234.56, descricao: 'Sinal', data: '2026-10-21' }],
+  } }
+  const ui = await mount(t, config)
+  const clickText = text => act(() => [...document.querySelectorAll('button')].find(b => b.textContent.trim() === text).click())
+  await clickText('Caixa')
+  await ui.open()
+  const focused = document.activeElement, reads = ui.reads.length
+  await act(() => base['@/lib/locale-store'].setLocale('en'))
+  assert.equal(document.activeElement, focused)
+  assert.equal(ui.reads.length, reads)
+  assert.match(ui.group().textContent, /Delete Cimento\?/)
+  assert.match(ui.group().textContent, /permanently removed/)
+  assert.match(document.body.textContent, /R\$1,234\.56/)
+  assert.match(document.body.textContent, /Pintar cozinha/)
+  assert.equal(document.querySelector('h1').textContent, 'Obra A')
+  const cash = [...document.querySelectorAll('h2')].find(h => h.textContent === 'Project cash flow')
+  assert.ok(cash.closest('.space-y-6').classList.contains('block'))
+  const opened = []
+  window.open = (...args) => opened.push(args)
+  await clickText('Send report (WhatsApp)')
+  const text = new URL(opened[0][0]).searchParams.get('text')
+  assert.match(text, /Hello! This is Worker/)
+  assert.match(text, /MATERIAL LIST/)
+  assert.match(text, /\*Cimento:\* 2 sacos/)
+  assert.equal(opened[0][2], 'noopener,noreferrer')
+  assert.equal(ui.requests.length, 0)
+  await act(() => ui.cancel().click())
+  assert.equal(document.activeElement.getAttribute('aria-label'), 'Delete Cimento')
+})
+
+test('detalhes: lançamento em inglês preserva descrição e BRL ao trocar durante envio', async t => {
+  const ui = await mount(t, cases[1])
+  await act(() => base['@/lib/locale-store'].setLocale('en'))
+  const fill = async (label, value) => act(() => {
+    const input = document.querySelector(`[aria-label="${label}"]`)
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, value)
+    input.dispatchEvent(new window.Event('input', { bubbles: true }))
+  })
+  await fill('Description', 'Sinal da obra')
+  await fill('Amount in BRL', '150,50')
+  let resolve
+  ui.setResponse(new Promise(done => { resolve = done }))
+  const form = document.querySelector('[aria-label="Description"]').closest('form')
+  await act(() => form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })))
+  assert.equal(ui.requests.length, 1)
+  assert.equal(ui.requests[0].payload[0].valor, 150.5)
+  assert.equal(ui.requests[0].payload[0].descricao, 'Sinal da obra')
+  assert.equal(ui.requests[0].payload[0].tipo, 'RECEBIMENTO_CLIENTE')
+  await act(() => base['@/lib/locale-store'].setLocale('pt-BR'))
+  assert.equal(document.querySelector('[aria-label="Descrição"]').value, 'Sinal da obra')
+  assert.ok(document.querySelector('[aria-label="Descrição"]').disabled)
+  await act(() => resolve({ data: { id: 44, ...ui.requests[0].payload[0] }, error: null }))
+  assert.equal(ui.requests.length, 1)
+  assert.equal(ui.notices.findLast(n => n[0] === 'success')[1], 'Lançamento registrado!')
+  assert.equal(document.querySelector('[aria-label="Descrição"]').value, '')
+})

@@ -1,5 +1,8 @@
 "use client";
 
+import { usePrivateLocale } from "@/app/hooks/usePrivateLocale";
+import { formatBRL, materialQuote } from "@/lib/private-i18n";
+
 import { useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
@@ -54,6 +57,8 @@ export default function ProjetoPage() {
 }
 
 function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
+  const { locale, p, message } = usePrivateLocale();
+  const notice = (text: string) => locale === "pt-BR" ? text : <span lang={message(text).lang}>{message(text).text}</span>;
   const { run, isPending, requiresReload } = useConfirmedMutation();
   const [precosEditados, setPrecosEditados] = useState<Record<number, string>>({});
   const [tituloObra, setTituloObra] = useState("Carregando...");
@@ -70,7 +75,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   const [nomeEditado, setNomeEditado] = useState("");
   const [qtdEditada, setQtdEditada] = useState("");
   
-  const [nomeProfissional, setNomeProfissional] = useState("Profissional");
+  const [nomeProfissional, setNomeProfissional] = useState("");
   const [telefoneContato, setTelefoneContato] = useState("");
 
   // Novos estados financeiros
@@ -120,7 +125,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
     setMateriais(data.materiais);
     setTransacoes(data.transacoes);
     setFuncionarios(data.funcionarios);
-    setNomeProfissional(data.user.user_metadata.nome || "Profissional");
+    setNomeProfissional(data.user.user_metadata.nome || "");
     setTelefoneContato(data.user.user_metadata.telefone || "");
   }, []);
   const { loading: carregando, ready, error, retry } = useDataLoad(carregarDadosDaObra, aplicarDadosDaObra);
@@ -137,7 +142,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
     if (isPending(`material-${id}`)) return;
     const preco = parseMoney(valorDigitado, { allowEmpty: true });
     if (!preco.ok) {
-      toast.error(`Preço do material: ${preco.error}`);
+      toast.error(notice(`Preço do material: ${preco.error}`));
       limparPrecoEditado(id);
       return;
     }
@@ -231,12 +236,10 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   };
 
   const solicitarOrcamentoWhatsApp = () => {
-    const e = { worker: '👷‍♂️', clipboard: '📋', bullet: '▪️', bulb: '💡', phone: '📞' };
-    let textoMensagem = `Olá! Aqui é o ${nomeProfissional}. ${e.worker}\nSegue a relação de materiais atualizada para a obra: *${tituloObra}*\n\n*${e.clipboard} LISTA DE MATERIAIS:*\n`;
-    materiais.forEach(item => { textoMensagem += `${e.bullet} *${item.nome}:* ${item.quantidade}\n`; });
-    textoMensagem += `\n*${e.bulb} Obra Certa:* Planejamento inteligente, transparência e sem desperdício.\nQualquer dúvida sobre as medidas, estou à disposição!\n`;
-    if (telefoneContato) textoMensagem += `${e.phone} Contato: ${telefoneContato}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(textoMensagem)}`, '_blank');
+    const textoMensagem = materialQuote(locale, {
+      worker: nomeProfissional, project: tituloObra, phone: telefoneContato, materials: materiais,
+    });
+    window.open(`https://wa.me/?text=${encodeURIComponent(textoMensagem)}`, '_blank', 'noopener,noreferrer');
   };
 
   /* ================== LÓGICA FINANCEIRA ================== */
@@ -251,10 +254,10 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
 
   const registrarTransacao = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!novaTransacao.valor || !novaTransacao.descricao) return toast.error("Preencha o valor e a descrição.");
+    if (!novaTransacao.valor || !novaTransacao.descricao) return toast.error(notice("Preencha o valor e a descrição."));
     
     const valor = parseMoney(novaTransacao.valor, { allowZero: false });
-    if (!valor.ok) return toast.error(`Lançamento: ${valor.error}`);
+    if (!valor.ok) return toast.error(notice(`Lançamento: ${valor.error}`));
 
   const payload: {
       projeto_id: string;
@@ -296,25 +299,25 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
       onConfirmed: (transacao) => setTransacoes(prev => prev.filter(t => t.id !== transacao.id)),
     });
   };
-  if (!ready) return <section>
-    <h1 className="text-2xl font-extrabold text-zinc-900">Detalhes da Obra</h1>
-    <Link href="/projetos" className="inline-block p-3 font-bold text-orange-800 underline">Voltar para projetos</Link>
+  if (!ready) return <section lang={locale}>
+    <h1 className="text-2xl font-extrabold text-zinc-900">{p("Detalhes da Obra")}</h1>
+    <Link href="/projetos" className="inline-block p-3 font-bold text-orange-800 underline">{p("Voltar para projetos")}</Link>
     <LoadFeedback error={error} retry={retry} />
   </section>;
 
   return (
     <MutationGuard blocked={requiresReload}>
-    <div className="space-y-6 animate-in fade-in duration-500 pb-20">
+    <div lang={locale} className="space-y-6 animate-in fade-in duration-500 pb-20">
       
       {/* HEADER PRINCIPAL */}
       <div className="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Link href="/projetos" className="p-2 bg-zinc-100 text-zinc-700 rounded-xl hover:bg-zinc-200 hover:text-zinc-900 transition-colors">
+          <Link aria-label={p("Voltar para projetos")} href="/projetos" className="p-2 bg-zinc-100 text-zinc-700 rounded-xl hover:bg-zinc-200 hover:text-zinc-900 transition-colors">
             <ArrowLeft size={24} />
           </Link>
           <div>
             <h1 className="text-2xl md:text-3xl font-extrabold text-zinc-900 tracking-tight">{tituloObra}</h1>
-            <p className="text-sm md:text-base text-zinc-600 mt-1">Gestão de materiais, tarefas e caixa.</p>
+            <p className="text-sm md:text-base text-zinc-600 mt-1">{p("Gestão de materiais, tarefas e caixa.")}</p>
           </div>
         </div>
 
@@ -325,7 +328,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
             className="hidden lg:flex items-center justify-center gap-2 bg-[#25D366] text-white px-5 py-3 rounded-xl hover:bg-[#128C7E] transition-colors shadow-sm font-bold"
           >
             <MessageCircle size={20} />
-            Enviar Relatório (WhatsApp)
+            {p("Enviar Relatório (WhatsApp)")}
           </button>
         )}
       </div>
@@ -334,20 +337,20 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
       {!carregando && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white p-4 rounded-xl border border-zinc-200 shadow-sm">
-            <p className="text-xs font-bold text-zinc-600 uppercase flex items-center gap-1"><TrendingUp size={14} className="text-emerald-600"/> Entradas</p>
-            <p className="text-lg md:text-2xl font-black text-zinc-900 mt-1">R$ {totalRecebido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+            <p className="text-xs font-bold text-zinc-600 uppercase flex items-center gap-1"><TrendingUp size={14} className="text-emerald-600"/> {p("Entradas")}</p>
+            <p className="text-lg md:text-2xl font-black text-zinc-900 mt-1">{formatBRL(locale, totalRecebido)}</p>
           </div>
           <div className="bg-white p-4 rounded-xl border border-zinc-200 shadow-sm">
-            <p className="text-xs font-bold text-zinc-600 uppercase flex items-center gap-1"><ShoppingCart size={14} className="text-orange-600"/> Materiais</p>
-            <p className="text-lg md:text-2xl font-black text-zinc-900 mt-1">R$ {custoMateriais.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+            <p className="text-xs font-bold text-zinc-600 uppercase flex items-center gap-1"><ShoppingCart size={14} className="text-orange-600"/> {p("Materiais")}</p>
+            <p className="text-lg md:text-2xl font-black text-zinc-900 mt-1">{formatBRL(locale, custoMateriais)}</p>
           </div>
           <div className="bg-white p-4 rounded-xl border border-zinc-200 shadow-sm">
-            <p className="text-xs font-bold text-zinc-600 uppercase flex items-center gap-1"><Users size={14} className="text-blue-600"/> Equipe</p>
-            <p className="text-lg md:text-2xl font-black text-zinc-900 mt-1">R$ {totalMaoDeObra.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+            <p className="text-xs font-bold text-zinc-600 uppercase flex items-center gap-1"><Users size={14} className="text-blue-600"/> {p("Equipe")}</p>
+            <p className="text-lg md:text-2xl font-black text-zinc-900 mt-1">{formatBRL(locale, totalMaoDeObra)}</p>
           </div>
           <div className={`p-4 rounded-xl border shadow-sm ${lucroAtual >= 0 ? 'bg-emerald-900 border-emerald-950 text-white' : 'bg-red-900 border-red-950 text-white'}`}>
-            <p className="text-xs font-bold opacity-90 uppercase flex items-center gap-1"><Wallet size={14}/> Lucro Atual</p>
-            <p className="text-lg md:text-2xl font-black mt-1">R$ {lucroAtual.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+            <p className="text-xs font-bold opacity-90 uppercase flex items-center gap-1"><Wallet size={14}/> {p("Lucro Atual")}</p>
+            <p className="text-lg md:text-2xl font-black mt-1">{formatBRL(locale, lucroAtual)}</p>
           </div>
         </div>
       )}
@@ -355,13 +358,13 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
       {/* MENU DE ABAS (Mobile) */}
       <div className="lg:hidden flex bg-zinc-200 p-1 rounded-xl shadow-inner gap-1">
         <button onClick={() => setAbaAtiva("materiais")} className={`flex-1 py-3 flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg font-bold text-xs sm:text-sm transition-all ${abaAtiva === "materiais" ? "bg-white text-orange-600 shadow-sm" : "text-zinc-600"}`}>
-          <ShoppingCart size={18} /> Orçamento
+          <ShoppingCart size={18} /> {p("Orçamento")}
         </button>
         <button onClick={() => setAbaAtiva("caixa")} className={`flex-1 py-3 flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg font-bold text-xs sm:text-sm transition-all ${abaAtiva === "caixa" ? "bg-white text-emerald-600 shadow-sm" : "text-zinc-600"}`}>
-          <Wallet size={18} /> Caixa
+          <Wallet size={18} /> {p("Caixa")}
         </button>
         <button onClick={() => setAbaAtiva("tarefas")} className={`flex-1 py-3 flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg font-bold text-xs sm:text-sm transition-all ${abaAtiva === "tarefas" ? "bg-white text-blue-600 shadow-sm" : "text-zinc-600"}`}>
-          <CheckSquare size={18} /> Tarefas
+          <CheckSquare size={18} /> {p("Tarefas")}
         </button>
       </div>
 
@@ -377,14 +380,14 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
           <div className={`${abaAtiva === "materiais" ? "block" : "hidden"} lg:block space-y-6`}>
             <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden flex flex-col max-h-175">
               <div className="p-4 border-b border-zinc-200 bg-zinc-50 flex justify-between items-center">
-                <h2 className="font-bold text-zinc-900">Lista de Materiais</h2>
+                <h2 className="font-bold text-zinc-900">{p("Lista de Materiais")}</h2>
               </div>
               
               <div className="overflow-y-auto flex-1">
                 {materiais.length === 0 ? (
                   <div className="p-10 text-center flex flex-col items-center">
                     <ShoppingCart size={40} className="text-zinc-400 mb-3" />
-                    <p className="text-zinc-600 font-medium">Nenhum material adicionado.</p>
+                    <p className="text-zinc-600 font-medium">{p("Nenhum material adicionado.")}</p>
                   </div>
                 ) : (
                   <ul className="divide-y divide-zinc-100">
@@ -392,11 +395,11 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                       <li key={item.id} className="p-4 flex flex-col gap-3 hover:bg-zinc-50 transition-colors">
                         {materialEditando === item.id ? (
                           <div className="flex flex-col sm:flex-row gap-3 bg-orange-50 p-3 rounded-xl border border-orange-300 animate-in fade-in">
-                            <input className="flex-1 p-3 border border-orange-300 rounded-lg text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 bg-white" disabled={isPending(`material-${item.id}`)} value={nomeEditado} onChange={(e) => setNomeEditado(e.target.value)} placeholder="Nome" />
-                            <input className="w-full sm:w-32 p-3 border border-orange-300 rounded-lg text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 bg-white" disabled={isPending(`material-${item.id}`)} value={qtdEditada} onChange={(e) => setQtdEditada(e.target.value)} placeholder="Qtd" />
+                            <input className="flex-1 p-3 border border-orange-300 rounded-lg text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 bg-white" disabled={isPending(`material-${item.id}`)} aria-label={p("Nome")} value={nomeEditado} onChange={(e) => setNomeEditado(e.target.value)} placeholder={p("Nome")} />
+                            <input className="w-full sm:w-32 p-3 border border-orange-300 rounded-lg text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 bg-white" disabled={isPending(`material-${item.id}`)} aria-label={p("Quantidade")} value={qtdEditada} onChange={(e) => setQtdEditada(e.target.value)} placeholder={p("Qtd")} />
                             <div className="flex gap-2 w-full sm:w-auto">
-                              <button disabled={isPending(`material-${item.id}`)} onClick={() => setMaterialEditando(null)} className="flex-1 bg-zinc-200 text-zinc-800 p-3 rounded-lg font-bold hover:bg-zinc-300 flex items-center justify-center"><X size={18}/></button>
-                              <button disabled={isPending(`material-${item.id}`)} onClick={() => salvarEdicaoMaterial(item.id)} className="flex-1 bg-emerald-600 text-white p-3 rounded-lg font-bold hover:bg-emerald-700 flex items-center justify-center"><Save size={18}/></button>
+                              <button aria-label={p("Cancelar edição")} disabled={isPending(`material-${item.id}`)} onClick={() => setMaterialEditando(null)} className="flex-1 bg-zinc-200 text-zinc-800 p-3 rounded-lg font-bold hover:bg-zinc-300 flex items-center justify-center"><X size={18}/></button>
+                              <button aria-label={p("Salvar material")} disabled={isPending(`material-${item.id}`)} onClick={() => salvarEdicaoMaterial(item.id)} className="flex-1 bg-emerald-600 text-white p-3 rounded-lg font-bold hover:bg-emerald-700 flex items-center justify-center"><Save size={18}/></button>
                             </div>
                           </div>
                         ) : (
@@ -407,8 +410,8 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                                 <span className="inline-block bg-orange-100 text-orange-800 py-1 px-3 rounded-full font-bold text-xs mt-1">{item.quantidade}</span>
                               </div>
                               <div className="flex gap-1">
-                                <button aria-label={`Editar ${item.nome}`} disabled={isPending(`material-${item.id}`)} onClick={() => iniciarEdicaoMaterial(item)} className="p-2 text-zinc-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"><Edit2 size={18} /></button>
-                                <button type="button" aria-label={`Excluir ${item.nome}`} aria-expanded={materialExcluindo === item.id} disabled={isPending(`material-${item.id}`)} onClick={event => {
+                                <button aria-label={p("Editar {name}", { name: item.nome })} disabled={isPending(`material-${item.id}`)} onClick={() => iniciarEdicaoMaterial(item)} className="p-2 text-zinc-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"><Edit2 size={18} /></button>
+                                <button type="button" aria-label={p("Excluir {name}", { name: item.nome })} aria-expanded={materialExcluindo === item.id} disabled={isPending(`material-${item.id}`)} onClick={event => {
                                   exclusaoTrigger.current = event.currentTarget;
                                   setMaterialEditando(null);
                                   setMaterialExcluindo(item.id);
@@ -416,18 +419,18 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                               </div>
                             </div>
                             <div className="flex justify-between items-center bg-zinc-50 p-3 rounded-xl border border-zinc-200 mt-1">
-                              <label className="text-xs font-bold text-zinc-600 uppercase tracking-wide">Custo Registrado</label>
+                              <label className="text-xs font-bold text-zinc-600 uppercase tracking-wide">{p("Custo Registrado")}</label>
                               <div className="flex items-center text-emerald-800 font-bold bg-white px-3 py-1.5 rounded-lg border border-zinc-300 shadow-sm focus-within:ring-2 focus-within:ring-emerald-600 transition-all">
                                 <span className="text-zinc-500 mr-1 text-sm">R$</span>
-                                <input type="text" inputMode="decimal" disabled={isPending(`material-${item.id}`)} value={precosEditados[item.id] ?? (item.preco_total ? item.preco_total.toString().replace(".", ",") : "")} onChange={(e) => setPrecosEditados(prev => ({ ...prev, [item.id]: e.target.value }))} placeholder="0,00" onBlur={(e) => atualizarPreco(item.id, e.target.value)} className="w-20 text-right outline-none bg-transparent placeholder-zinc-400" />
+                                <input type="text" inputMode="decimal" disabled={isPending(`material-${item.id}`)} aria-label={`${p("Custo Registrado")}: ${item.nome}`} value={precosEditados[item.id] ?? (item.preco_total ? item.preco_total.toString().replace(".", ",") : "")} onChange={(e) => setPrecosEditados(prev => ({ ...prev, [item.id]: e.target.value }))} placeholder={p("0,00")} onBlur={(e) => atualizarPreco(item.id, e.target.value)} className="w-20 text-right outline-none bg-transparent placeholder-zinc-400" />
                               </div>
                             </div>
                           </>
                         )}
                         {materialExcluindo === item.id && <DeleteConfirmation
                           key={item.id}
-                          title={`Excluir ${item.nome}?`}
-                          description="O material e seu custo serão removidos permanentemente deste orçamento."
+                          title={p("Excluir {name}?", { name: item.nome })}
+                          description={p("O material e seu custo serão removidos permanentemente deste orçamento.")}
                           pending={isPending(`material-${item.id}`)}
                           onCancel={cancelarExclusaoMaterial}
                           onConfirm={() => { void executarExclusaoMaterial(item.id); }}
@@ -440,7 +443,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
               
               <div className="p-4 bg-zinc-50 border-t border-zinc-200">
                 <Link href="/calcular" className="flex items-center justify-center gap-2 w-full bg-orange-100 text-orange-800 font-bold p-4 rounded-xl hover:bg-orange-200 transition-colors">
-                  <Calculator size={20} /> Nova Medição
+                  <Calculator size={20} /> {p("Nova Medição")}
                 </Link>
               </div>
             </div>
@@ -448,7 +451,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
             {/* Botão do WhatsApp no Mobile */}
             {materiais.length > 0 && (
               <button onClick={solicitarOrcamentoWhatsApp} className="lg:hidden w-full flex items-center justify-center gap-2 bg-[#25D366] text-white font-bold p-4 rounded-xl hover:bg-[#128C7E] transition shadow-sm">
-                <MessageCircle size={20} /> Pedir Cotação no WhatsApp
+                <MessageCircle size={20} /> {p("Pedir Cotação no WhatsApp")}
               </button>
             )}
           </div>
@@ -458,20 +461,20 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
             <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden flex flex-col max-h-175">
               <div className="p-4 border-b border-zinc-200 bg-zinc-50 flex items-center gap-2">
                 <Wallet size={20} className="text-emerald-700" />
-                <h2 className="font-bold text-zinc-900">Caixa da Obra</h2>
+                <h2 className="font-bold text-zinc-900">{p("Caixa da Obra")}</h2>
               </div>
               
               <div className="p-4 border-b border-zinc-200 bg-white">
                 <form onSubmit={registrarTransacao} className="flex flex-col gap-3">
-                  <select className="p-3 border border-zinc-300 rounded-xl text-sm font-bold outline-none bg-zinc-50 text-zinc-900 focus:ring-2 focus:ring-emerald-600" disabled={salvandoCaixa} value={novaTransacao.tipo} onChange={(e) => setNovaTransacao({ ...novaTransacao, tipo: e.target.value as "RECEBIMENTO_CLIENTE" | "PAGAMENTO_FUNCIONARIO", funcionario_id: "" })}>
-                    <option value="RECEBIMENTO_CLIENTE">Entrada: Dinheiro do Cliente</option>
-                    <option value="PAGAMENTO_FUNCIONARIO">Saída: Pagamento da Equipe</option>
+                  <select className="p-3 border border-zinc-300 rounded-xl text-sm font-bold outline-none bg-zinc-50 text-zinc-900 focus:ring-2 focus:ring-emerald-600" disabled={salvandoCaixa} aria-label={p("Tipo de lançamento")} value={novaTransacao.tipo} onChange={(e) => setNovaTransacao({ ...novaTransacao, tipo: e.target.value as "RECEBIMENTO_CLIENTE" | "PAGAMENTO_FUNCIONARIO", funcionario_id: "" })}>
+                    <option value="RECEBIMENTO_CLIENTE">{p("Entrada: Dinheiro do Cliente")}</option>
+                    <option value="PAGAMENTO_FUNCIONARIO">{p("Saída: Pagamento da Equipe")}</option>
                   </select>
 
                   {novaTransacao.tipo === "PAGAMENTO_FUNCIONARIO" && (
-                    <select className="p-3 border border-zinc-300 rounded-xl text-sm outline-none bg-white text-zinc-900 focus:ring-2 focus:ring-emerald-600" disabled={salvandoCaixa} value={novaTransacao.funcionario_id} onChange={(e) => handleSelecionarFuncionario(e.target.value)} required>
-                      <option value="" disabled hidden>Selecione o profissional...</option>
-                      {funcionarios.map(f => <option key={f.id} value={f.id}>{f.nome} (Diária: R$ {f.valor_diaria})</option>)}
+                    <select className="p-3 border border-zinc-300 rounded-xl text-sm outline-none bg-white text-zinc-900 focus:ring-2 focus:ring-emerald-600" disabled={salvandoCaixa} aria-label={p("Profissional")} value={novaTransacao.funcionario_id} onChange={(e) => handleSelecionarFuncionario(e.target.value)} required>
+                      <option value="" disabled hidden>{p("Selecione o profissional...")}</option>
+                      {funcionarios.map(f => <option key={f.id} value={f.id}>{f.nome} ({p("Diária")}: {formatBRL(locale, f.valor_diaria ?? 0)})</option>)}
                     </select>
                   )}
 
@@ -479,8 +482,8 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                     <input 
                       type="text" 
                       className="sm:w-1/2 p-3 border border-zinc-300 rounded-xl text-sm text-zinc-900 placeholder-zinc-500 outline-none focus:ring-2 focus:ring-emerald-600 transition-all" 
-                      placeholder={novaTransacao.tipo === "RECEBIMENTO_CLIENTE" ? "Ex: Sinal / 1ª Parcela" : "Ex: Adiantamento / 3 dias"} 
-                      disabled={salvandoCaixa} value={novaTransacao.descricao}
+                      placeholder={novaTransacao.tipo === "RECEBIMENTO_CLIENTE" ? p("Ex: Sinal / 1ª Parcela") : p("Ex: Adiantamento / 3 dias")}
+                      disabled={salvandoCaixa} aria-label={p("Descrição")} value={novaTransacao.descricao}
                       onChange={(e) => setNovaTransacao({ ...novaTransacao, descricao: e.target.value })} 
                       required 
                     />
@@ -491,37 +494,37 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                         type="text" 
                         inputMode="decimal" 
                         className="w-full py-3 pl-2 outline-none text-right text-sm font-bold text-zinc-900 placeholder-zinc-400 bg-transparent" 
-                        disabled={salvandoCaixa} value={novaTransacao.valor}
+                        disabled={salvandoCaixa} aria-label={p("Valor em reais")} value={novaTransacao.valor}
                         onChange={(e) => setNovaTransacao({ ...novaTransacao, valor: e.target.value })} 
-                        placeholder="0,00" 
+                        placeholder={p("0,00")}
                         required 
                       />
                     </div>
                   </div>
                   
                   <button type="submit" disabled={salvandoCaixa} className="bg-emerald-700 text-white font-bold p-3 rounded-xl hover:bg-emerald-800 transition flex items-center justify-center gap-2 text-sm disabled:opacity-50 mt-1 shadow-sm">
-                    <Plus size={16}/> Lançar no Caixa
+                    <Plus size={16}/> {p("Lançar no Caixa")}
                   </button>
                 </form>
               </div>
 
               <div className="overflow-y-auto flex-1 p-3">
-                {transacoes.length === 0 ? <p className="text-center text-zinc-600 font-medium py-6 text-sm">Nenhuma movimentação.</p> : (
+                {transacoes.length === 0 ? <p className="text-center text-zinc-600 font-medium py-6 text-sm">{p("Nenhuma movimentação.")}</p> : (
                   <ul className="space-y-2">
                     {transacoes.map(t => (
                       <li key={t.id} className="p-3 border border-zinc-200 rounded-xl flex justify-between items-center bg-white shadow-sm hover:border-zinc-300 transition-colors">
                         <div>
                           <div className="flex items-center gap-2">
                             {t.tipo === "RECEBIMENTO_CLIENTE" ? <TrendingUp size={16} className="text-emerald-700"/> : <TrendingDown size={16} className="text-red-700"/>}
-                            <span className="font-bold text-zinc-900 text-sm">{t.tipo === "RECEBIMENTO_CLIENTE" ? "Recebimento" : t.funcionarios?.nome || "Equipe"}</span>
+                            <span className="font-bold text-zinc-900 text-sm">{t.tipo === "RECEBIMENTO_CLIENTE" ? p("Recebimento") : t.funcionarios?.nome || p("Equipe")}</span>
                           </div>
                           <p className="text-xs font-medium text-zinc-600 mt-1 truncate max-w-37.5">{t.descricao}</p>
                         </div>
                         <div className="flex flex-col items-end gap-1">
                           <span className={`font-black text-sm ${t.tipo === "RECEBIMENTO_CLIENTE" ? "text-emerald-700" : "text-red-700"}`}>
-                            {t.tipo === "RECEBIMENTO_CLIENTE" ? "+" : "-"} R$ {t.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                            {t.tipo === "RECEBIMENTO_CLIENTE" ? "+" : "-"} {formatBRL(locale, t.valor)}
                           </span>
-                          <button disabled={isPending(`transacao-${t.id}`)} onClick={() => excluirTransacao(t.id)} className="text-zinc-500 hover:text-red-600 p-1"><Trash2 size={16}/></button>
+                          <button aria-label={p("Excluir {name}", { name: t.descricao })} disabled={isPending(`transacao-${t.id}`)} onClick={() => excluirTransacao(t.id)} className="text-zinc-500 hover:text-red-600 p-1"><Trash2 size={16}/></button>
                         </div>
                       </li>
                     ))}
@@ -536,13 +539,13 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
             <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden flex flex-col max-h-175">
               <div className="p-4 border-b border-zinc-200 bg-zinc-50 flex items-center gap-2">
                 <CheckSquare size={20} className="text-blue-700" />
-                <h2 className="font-bold text-zinc-900">Checklist da Obra</h2>
+                <h2 className="font-bold text-zinc-900">{p("Checklist da Obra")}</h2>
               </div>
 
               <div className="p-4 border-b border-zinc-200 bg-white">
                 <form onSubmit={criarTarefa} className="flex gap-2">
-                  <input type="text" className="flex-1 p-3 border border-zinc-300 rounded-xl text-zinc-900 outline-none focus:ring-2 focus:ring-blue-600 transition-all bg-zinc-50 focus:bg-white placeholder-zinc-500" placeholder="O que precisa ser feito?" disabled={salvandoTarefa} value={novaTarefa} onChange={(e) => setNovaTarefa(e.target.value)} />
-                  <button type="submit" disabled={salvandoTarefa || !novaTarefa.trim()} className="bg-zinc-900 text-white px-4 rounded-xl font-bold hover:bg-zinc-800 transition disabled:opacity-50">
+                  <input type="text" className="flex-1 p-3 border border-zinc-300 rounded-xl text-zinc-900 outline-none focus:ring-2 focus:ring-blue-600 transition-all bg-zinc-50 focus:bg-white placeholder-zinc-500" placeholder={p("O que precisa ser feito?")} disabled={salvandoTarefa} aria-label={p("O que precisa ser feito?")} value={novaTarefa} onChange={(e) => setNovaTarefa(e.target.value)} />
+                  <button aria-label={p("Adicionar tarefa")} type="submit" disabled={salvandoTarefa || !novaTarefa.trim()} className="bg-zinc-900 text-white px-4 rounded-xl font-bold hover:bg-zinc-800 transition disabled:opacity-50">
                     <Plus size={20} />
                   </button>
                 </form>
@@ -552,7 +555,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                 {tarefas.length === 0 ? (
                   <div className="py-10 text-center flex flex-col items-center">
                     <CheckSquare size={32} className="text-zinc-400 mb-2" />
-                    <p className="text-zinc-600 font-medium">Sua lista está vazia.</p>
+                    <p className="text-zinc-600 font-medium">{p("Sua lista está vazia.")}</p>
                   </div>
                 ) : (
                   <div className="space-y-2">

@@ -6,7 +6,7 @@ uma nova certificação de segurança nem uma revisão das configurações remot
 | Prioridade | Evidência | Próxima correção |
 | --- | --- | --- |
 | Média | `app/(sistema)/projetos/[id]/page.tsx`: busca todas as tarefas, materiais, transações e funcionários antes de liberar a tela. | Paginar abas e usar agregações no banco para totais. Não calcular o saldo apenas sobre a página visível. |
-| Média | `app/(sistema)/calcular/page.tsx`: `loadAllRows` no seletor de obras. O seletor de profissionais dos detalhes também carrega todos os registros. | Seletores com busca e limite no servidor, mantendo o registro escolhido e cancelando respostas antigas. |
+| Média | O seletor de profissionais dos detalhes ainda carrega todos os registros. O seletor de obras da calculadora já tem busca paginada. | Aplicar busca e limite no servidor ao seletor de profissionais, mantendo o registro escolhido e cancelando respostas antigas. |
 | Média | `app/(sistema)/home/page.tsx`: botão “Gerar Relatório” sem ação e status fixo “Em andamento”. `app/(sistema)/projetos/page.tsx`: progresso fixo em 0%. | Implementar relatório e indicadores derivados de dados reais, ou retirar os elementos até terem comportamento funcional. |
 | Validação manual | Tradução das telas, avisos e PWA implementada. | Executar o [roteiro de idiomas](./idiomas.md) no celular, com leitor de tela e no PWA instalado. |
 | Média | Detalhes de obra: campos e botões receberam nomes acessíveis na tradução; ainda há estilos de texto claro que exigem verificação visual. | Revisar associação de labels, nomes de botões, foco e contraste medido em estados normal/desabilitado, nas duas línguas. |
@@ -23,3 +23,9 @@ A exclusão direta de lançamentos do caixa foi substituída por confirmação l
 com valor, efeito sobre o saldo, foco e tradução. Veja o
 [roteiro de exclusão do caixa](./exclusao-do-caixa.md). A próxima frente de
 performance continua sendo a paginação das abas com totais agregados no banco.
+
+## Seletor de obras da calculadora
+
+Busca no servidor e páginas de 20 obras substituem a leitura integral da lista.
+A seleção fica preservada fora da página e consultas antigas são canceladas.
+Veja o [roteiro de busca de obras](./busca-de-obras-na-calculadora.md).

@@ -18,7 +18,7 @@
     "test:deletions": "node --test tests/delete-confirmation.test.mjs",
     "test:dashboard": "node --test tests/dashboard.test.mjs",
     "test:dashboard-db": "python3 tests/database/test_dashboard.py",
-    "test:calculator": "node --test tests/material-calculation.test.mjs tests/calculator.test.mjs",
+    "test:calculator": "node --test tests/material-calculation.test.mjs tests/calculator.test.mjs tests/project-picker.test.mjs",
     "test:signup": "node --test tests/signup.test.mjs tests/signup-page.test.mjs",
     "test:password-reset": "node --test tests/password-reset.test.mjs tests/password-reset-page.test.mjs",
     "test:profile": "node --test tests/profile.test.mjs tests/profile-page.test.mjs",

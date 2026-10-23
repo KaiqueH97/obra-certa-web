@@ -2,6 +2,10 @@ import type { Locale } from "./i18n";
 
 // Chaves são os textos originais; nunca aplicar este catálogo a dados cadastrados.
 const english = {
+  "Buscar obra pelo nome": "Search projects by name",
+  "Buscar": "Search",
+  "Obra selecionada: {name}": "Selected project: {name}",
+  "Nenhuma obra encontrada nesta busca.": "No projects found for this search.",
   "Este recebimento de {value} será removido permanentemente. O saldo calculado da obra diminuirá nesse valor.": "This receipt of {value} will be permanently removed. The project's calculated balance will decrease by this amount.",
   "Este pagamento de {value} será removido permanentemente. O saldo calculado da obra aumentará nesse valor. Isso não estorna o pagamento ao profissional.": "This payment of {value} will be permanently removed. The project's calculated balance will increase by this amount. This does not reverse the payment to the worker.",
   "Não foi possível verificar sua sessão. Confira a conexão e tente novamente.": "We could not verify your session. Check your connection and try again.",

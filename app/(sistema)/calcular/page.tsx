@@ -4,11 +4,9 @@ import { usePrivateLocale } from "@/app/hooks/usePrivateLocale";
 import { formatNumber } from "@/lib/i18n";
 import { formatBRL } from "@/lib/private-i18n";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
-import { useDataLoad } from "@/app/hooks/useDataLoad";
-import { LoadFeedback } from "@/app/components/LoadFeedback";
-import { loadAllRows } from "@/lib/load-data";
+import { ProjectPicker, type ProjectOption } from "@/app/components/ProjectPicker";
 import toast from "react-hot-toast";
 import { MutationGuard } from "@/app/components/MutationGuard";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
@@ -73,14 +71,7 @@ export default function Calculadora() {
   const [resultado, setResultado] = useState<(MaterialEstimate & { materialNome: string }) | null>(null);
   const proximaMedidaId = useRef(2);
 
-  const [projetos, setProjetos] = useState<{ id: number; titulo: string }[]>([]);
-  const [projetoSelecionado, setProjetoSelecionado] = useState("");
-
-  const buscarProjetos = useCallback((signal: AbortSignal) => loadAllRows<{ id: number; titulo: string }>(
-    (from, to) => supabase.from("projetos").select("id, titulo", { count: "exact" })
-      .order("id").range(from, to).abortSignal(signal), signal,
-  ), []);
-  const { ready, error, retry } = useDataLoad(buscarProjetos, setProjetos);
+  const [projetoSelecionado, setProjetoSelecionado] = useState<ProjectOption | null>(null);
 
   const adicionarMedida = () => {
     setResultado(null);
@@ -112,7 +103,7 @@ export default function Calculadora() {
   };
 
   const salvarNoProjeto = async () => {
-    if (!ready || !projetoSelecionado || !resultado) return;
+    if (!projetoSelecionado || !resultado) return;
     const infoPecas = resultado.totalPecas ? ` (~${resultado.totalPecas} peças)` : "";
     const quantidadeSalva = `${resultado.quantidade} ${resultado.unidade}${infoPecas}`;
 
@@ -121,7 +112,7 @@ export default function Calculadora() {
       loading: "Salvando material na obra...",
       success: "Material e preço salvos no projeto!",
       request: () => supabase.from("materiais_projeto").insert([{
-        projeto_id: parseInt(projetoSelecionado), nome: resultado.materialNome,
+        projeto_id: projetoSelecionado.id, nome: resultado.materialNome,
         quantidade: quantidadeSalva, preco_total: resultado.precoTotalEstimado || 0,
       }]).select("id").single<{ id: number }>(),
       onConfirmed: () => {
@@ -388,28 +379,12 @@ export default function Calculadora() {
                     <Building2 size={16} className="text-orange-600"/> {p("Vincular a uma Obra Ativa")}
                   </label>
                   
-                  {!ready && <LoadFeedback error={error} retry={retry} />}
-                  <select
-                    id="projeto-calculo"
-                    className="w-full p-4 md:p-3 mb-4 rounded-xl border border-zinc-300 bg-zinc-50 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-orange-600 font-medium transition-all"
-                    disabled={!ready || salvando} value={projetoSelecionado}
-                    onChange={(e) => setProjetoSelecionado(e.target.value)}
-                  >
-                    <option value="" disabled hidden>{p("Selecione um projeto...")}</option>
-                    {!ready ? null : projetos.length === 0 ? (
-                      <option disabled>{p("Nenhum projeto encontrado.")}</option>
-                    ) : (
-                      projetos.map((proj) => (
-                        <option key={proj.id} value={proj.id}>
-                          {proj.titulo}
-                        </option>
-                      ))
-                    )}
-                  </select>
+                  <ProjectPicker id="projeto-calculo" selected={projetoSelecionado}
+                    onSelect={setProjetoSelecionado} disabled={salvando} />
 
                   <button
                     onClick={salvarNoProjeto}
-                    disabled={!ready || !projetoSelecionado || salvando}
+                    disabled={!projetoSelecionado || salvando}
                     className="w-full flex items-center justify-center gap-2 bg-orange-600 text-white p-4 md:p-3 rounded-xl md:text-lg font-bold hover:bg-orange-700 disabled:opacity-50 disabled:bg-zinc-300 disabled:text-zinc-500 transition-colors shadow-sm"
                   >
                     <Save size={20} />

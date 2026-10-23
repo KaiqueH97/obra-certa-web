@@ -9,6 +9,10 @@ import { createI18nDependencies } from './helpers/i18n.mjs'
 
 const { act, createElement: h } = React
 const base = { react: React, 'react/jsx-runtime': jsx, ...createI18nDependencies() }
+const loads = loadTs(new URL('../lib/load-data.ts', import.meta.url))
+const pagination = loadTs(new URL('../lib/pagination.ts', import.meta.url), { './load-data': loads })
+const loadHook = loadTs(new URL('../app/hooks/useDataLoad.ts', import.meta.url), { ...base, '@/lib/load-data': loads })
+const feedback = loadTs(new URL('../app/components/LoadFeedback.tsx', import.meta.url), base)
 const money = loadTs(new URL('../lib/money.ts', import.meta.url))
 const calculation = loadTs(new URL('../lib/material-calculation.ts', import.meta.url), { './money': money })
 const mutations = loadTs(new URL('../lib/confirmed-mutation.ts', import.meta.url))
@@ -22,7 +26,26 @@ async function mount(t, landing = false, saveResponse = { data: { id: 1 }, error
   globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const { createRoot } = await import('react-dom/client')
   const notices = []
-  const writes = []
+  const writes = [], reads = []
+  const supabase = { from: table => ({
+    select() {
+      const query = { table }
+      const chain = {
+        ilike(column, pattern) { query.pattern = pattern; return chain },
+        order() { return chain }, range(from, to) { query.range = [from, to]; return chain },
+        abortSignal(signal) { reads.push({ ...query, signal }); return Promise.resolve({ data: [{ id: 42, titulo: 'Obra A' }], count: 1, error: null }) },
+      }
+      return chain
+    },
+    insert: rows => {
+      writes.push({ table, rows })
+      return { select: () => ({ single: async () => saveResponse }) }
+    },
+  }) }
+  const picker = loadTs(new URL('../app/components/ProjectPicker.tsx', import.meta.url), {
+    ...base, '@/lib/supabase': { supabase }, '@/lib/pagination': pagination, '@/lib/load-data': loads,
+    '@/app/hooks/useDataLoad': loadHook, '@/app/components/LoadFeedback': feedback,
+  })
   const toast = { error: text => notices.push(text), success() {}, dismiss() {}, loading: () => 'saving' }
   const actions = loadTs(new URL('../app/hooks/useConfirmedMutation.ts', import.meta.url), { ...base, 'react-hot-toast': { default: toast }, '@/lib/confirmed-mutation': { ...mutations, createMutationRunner: (notices, onPending, onUnconfirmed) => mutations.createMutationRunner(notices, onPending, onUnconfirmed, timeoutMs) } })
   const { default: Page } = loadTs(new URL(landing ? '../app/page.tsx' : '../app/(sistema)/calcular/page.tsx', import.meta.url), {
@@ -30,17 +53,9 @@ async function mount(t, landing = false, saveResponse = { data: { id: 1 }, error
     ...base, 'lucide-react': icons, 'react-hot-toast': { default: toast },
     'next/link': { default: props => h('a', props) },
     '@/lib/material-calculation': calculation,
-    '@/lib/load-data': {},
-    '@/app/components/LoadFeedback': {},
+    '@/app/components/ProjectPicker': picker,
     '@/app/hooks/useConfirmedMutation': actions, '@/app/components/MutationGuard': guard,
-    '@/app/hooks/useDataLoad': { useDataLoad: function useFixture(load, apply) {
-      React.useEffect(() => { apply([{ id: 42, titulo: 'Obra A' }]) }, [apply])
-      return { ready: true }
-    } },
-    '@/lib/supabase': { supabase: { from: table => ({ insert: rows => {
-      writes.push({ table, rows })
-      return { select: () => ({ single: async () => saveResponse }) }
-    } }) } },
+    '@/lib/supabase': { supabase },
   })
   const root = createRoot(document.getElementById('root'))
   t.after(async () => {
@@ -64,11 +79,12 @@ async function mount(t, landing = false, saveResponse = { data: { id: 1 }, error
     await fill('superficie', 'piso'); await fill('material', 'Porcelanato')
     await fill('altura-1', '3'); await fill('largura-1', '4')
   }
-  return { notices, writes, fill, submit, prepare }
+  return { notices, writes, reads, fill, submit, prepare }
 }
 
 test('calculadora bloqueia texto parcial e dimensões inválidas antes de oferecer salvar', async t => {
   const ui = await mount(t)
+  assert.equal(ui.reads.length, 0, 'Não busca obras antes de calcular')
   await ui.prepare()
   await ui.fill('altura-1', '3abc')
   await ui.submit()
@@ -97,6 +113,7 @@ test('resultado com vírgula é salvo com quantidade e custo confirmados; editar
   assert.equal(record.quantidade, '13,20 m² (já c/ 10% de quebra) (~37 peças)')
   assert.equal(record.preco_total, 132)
   assert.equal(record.projeto_id, 42)
+  assert.ok(ui.reads.every(read => read.table === 'projetos' && read.range[0] === 0 && read.range[1] === 19))
   assert.equal(document.getElementById('projeto-calculo'), null)
 })
 

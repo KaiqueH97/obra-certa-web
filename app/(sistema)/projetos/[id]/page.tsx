@@ -79,6 +79,9 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   const [telefoneContato, setTelefoneContato] = useState("");
 
   // Novos estados financeiros
+  const [transacaoExcluindo, setTransacaoExcluindo] = useState<number | null>(null);
+  const transacaoTrigger = useRef<HTMLButtonElement | null>(null);
+  const caixaHeading = useRef<HTMLHeadingElement>(null);
   const [transacoes, setTransacoes] = useState<Transacao[]>([]);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [novaTransacao, setNovaTransacao] = useState({ tipo: "RECEBIMENTO_CLIENTE", valor: "", descricao: "", funcionario_id: "" });
@@ -289,14 +292,25 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
     });
   };
 
+  const cancelarExclusaoTransacao = () => {
+    setTransacaoExcluindo(null);
+    transacaoTrigger.current?.focus();
+  };
+
   const excluirTransacao = async (id: number) => {
+    if (transacaoExcluindo !== id || requiresReload) return;
     await run({
       key: `transacao-${id}`,
       loading: "Removendo lançamento...",
       success: "Lançamento removido.",
       request: () => supabase.from("financeiro_obra").delete()
         .eq("id", id).eq("projeto_id", projetoId).select("id").single<{ id: number }>(),
-      onConfirmed: (transacao) => setTransacoes(prev => prev.filter(t => t.id !== transacao.id)),
+      onConfirmed: (transacao) => {
+        setTransacoes(prev => prev.filter(t => t.id !== transacao.id));
+        setTransacaoExcluindo(null);
+        transacaoTrigger.current = null;
+        caixaHeading.current?.focus();
+      },
     });
   };
   if (!ready) return <section lang={locale}>
@@ -461,7 +475,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
             <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden flex flex-col max-h-175">
               <div className="p-4 border-b border-zinc-200 bg-zinc-50 flex items-center gap-2">
                 <Wallet size={20} className="text-emerald-700" />
-                <h2 className="font-bold text-zinc-900">{p("Caixa da Obra")}</h2>
+                <h2 ref={caixaHeading} tabIndex={-1} className="font-bold text-zinc-900">{p("Caixa da Obra")}</h2>
               </div>
               
               <div className="p-4 border-b border-zinc-200 bg-white">
@@ -512,20 +526,41 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                 {transacoes.length === 0 ? <p className="text-center text-zinc-600 font-medium py-6 text-sm">{p("Nenhuma movimentação.")}</p> : (
                   <ul className="space-y-2">
                     {transacoes.map(t => (
-                      <li key={t.id} className="p-3 border border-zinc-200 rounded-xl flex justify-between items-center bg-white shadow-sm hover:border-zinc-300 transition-colors">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            {t.tipo === "RECEBIMENTO_CLIENTE" ? <TrendingUp size={16} className="text-emerald-700"/> : <TrendingDown size={16} className="text-red-700"/>}
-                            <span className="font-bold text-zinc-900 text-sm">{t.tipo === "RECEBIMENTO_CLIENTE" ? p("Recebimento") : t.funcionarios?.nome || p("Equipe")}</span>
+                      <li key={t.id} className="p-3 border border-zinc-200 rounded-xl bg-white shadow-sm hover:border-zinc-300 transition-colors">
+                        <div className="flex justify-between items-center gap-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              {t.tipo === "RECEBIMENTO_CLIENTE" ? <TrendingUp size={16} className="text-emerald-700"/> : <TrendingDown size={16} className="text-red-700"/>}
+                              <span className="font-bold text-zinc-900 text-sm">{t.tipo === "RECEBIMENTO_CLIENTE" ? p("Recebimento") : t.funcionarios?.nome || p("Equipe")}</span>
+                            </div>
+                            <p className="text-xs font-medium text-zinc-600 mt-1 truncate max-w-37.5">{t.descricao}</p>
                           </div>
-                          <p className="text-xs font-medium text-zinc-600 mt-1 truncate max-w-37.5">{t.descricao}</p>
+                          <div className="flex flex-col items-end gap-1">
+                            <span className={`font-black text-sm ${t.tipo === "RECEBIMENTO_CLIENTE" ? "text-emerald-700" : "text-red-700"}`}>
+                              {t.tipo === "RECEBIMENTO_CLIENTE" ? "+" : "-"} {formatBRL(locale, t.valor)}
+                            </span>
+                            <button type="button" aria-label={p("Excluir {name}", { name: t.descricao })}
+                              aria-expanded={transacaoExcluindo === t.id}
+                              disabled={isPending(`transacao-${t.id}`) || (transacaoExcluindo !== null && transacaoExcluindo !== t.id)}
+                              onClick={event => {
+                                transacaoTrigger.current = event.currentTarget;
+                                setTransacaoExcluindo(t.id);
+                              }}
+                              className="min-h-11 min-w-11 flex items-center justify-center rounded-lg text-zinc-700 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-red-800"><Trash2 size={16}/></button>
+                          </div>
                         </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <span className={`font-black text-sm ${t.tipo === "RECEBIMENTO_CLIENTE" ? "text-emerald-700" : "text-red-700"}`}>
-                            {t.tipo === "RECEBIMENTO_CLIENTE" ? "+" : "-"} {formatBRL(locale, t.valor)}
-                          </span>
-                          <button aria-label={p("Excluir {name}", { name: t.descricao })} disabled={isPending(`transacao-${t.id}`)} onClick={() => excluirTransacao(t.id)} className="text-zinc-500 hover:text-red-600 p-1"><Trash2 size={16}/></button>
-                        </div>
+                        {transacaoExcluindo === t.id && <div className="mt-3">
+                          <DeleteConfirmation
+                            title={p("Excluir {name}?", { name: t.descricao })}
+                            description={p(t.tipo === "RECEBIMENTO_CLIENTE"
+                              ? "Este recebimento de {value} será removido permanentemente. O saldo calculado da obra diminuirá nesse valor."
+                              : "Este pagamento de {value} será removido permanentemente. O saldo calculado da obra aumentará nesse valor. Isso não estorna o pagamento ao profissional.",
+                            { value: formatBRL(locale, t.valor) })}
+                            pending={isPending(`transacao-${t.id}`)}
+                            onCancel={cancelarExclusaoTransacao}
+                            onConfirm={() => { void excluirTransacao(t.id); }}
+                          />
+                        </div>}
                       </li>
                     ))}
                   </ul>

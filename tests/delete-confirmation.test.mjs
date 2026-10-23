@@ -32,6 +32,13 @@ const cases = [
       { id: 8, projeto_id: 42, nome: 'Areia', quantidade: '1 m³', preco_total: 100 },
     ],
   } },
+  { name: 'lançamento', file: '../app/(sistema)/projetos/[id]/page.tsx', table: 'financeiro_obra', label: 'Sinal da obra', data: {
+    projeto: { titulo: 'Obra A' }, tarefas: [], materiais: [], funcionarios: [], user: { user_metadata: {} },
+    transacoes: [
+      { id: 7, tipo: 'RECEBIMENTO_CLIENTE', valor: 1000, descricao: 'Sinal da obra', data: '2026-10-23' },
+      { id: 8, tipo: 'PAGAMENTO_FUNCIONARIO', valor: 150, descricao: 'Diária de João', data: '2026-10-23' },
+    ],
+  } },
 ]
 
 async function mount(t, config, timeoutMs = 20000) {
@@ -150,7 +157,7 @@ for (const config of cases) {
     assert.equal(ui.requests.length, 1)
     assert.equal(ui.requests[0].table, config.table)
     assert.equal(ui.requests[0].operation, 'delete')
-    assert.deepEqual(ui.requests[0].filters, config.name === 'material' ? [['id', 7], ['projeto_id', '42']] : [['id', 7]])
+    assert.deepEqual(ui.requests[0].filters, config.name === 'equipe' ? [['id', 7]] : [['id', 7], ['projeto_id', '42']])
     assert.ok(ui.trigger())
     assert.equal(ui.cancel().disabled, true)
     assert.equal(ui.confirm().disabled, true)
@@ -313,4 +320,43 @@ test('detalhes: lançamento em inglês preserva descrição e BRL ao trocar dura
   assert.equal(ui.requests.length, 1)
   assert.equal(ui.notices.findLast(n => n[0] === 'success')[1], 'Lançamento registrado!')
   assert.equal(document.querySelector('[aria-label="Descrição"]').value, '')
+})
+
+test('caixa: abrir não altera totais; remover recebimento só recalcula após confirmação', async t => {
+  const ui = await mount(t, cases[2])
+  const card = label => [...document.querySelectorAll('p')].find(p => p.textContent.trim() === label).parentElement.textContent
+  const initial = card('Lucro Atual')
+  await ui.open()
+  assert.match(ui.group().textContent, /1\.000,00/)
+  assert.match(ui.group().textContent, /diminuirá/)
+  assert.equal(card('Lucro Atual'), initial)
+  let resolve
+  ui.setResponse(new Promise(done => { resolve = done }))
+  await act(() => ui.confirm().click())
+  assert.equal(card('Lucro Atual'), initial)
+  assert.ok(document.querySelector('[aria-label="Excluir Diária de João"]').disabled)
+  await act(() => resolve({ data: { id: 7 }, error: null }))
+  assert.match(card('Entradas'), /0,00/)
+  assert.match(card('Lucro Atual'), /-R\$\s*150,00/)
+  assert.equal(document.activeElement.textContent, 'Caixa da Obra')
+  assert.equal(ui.reads.length, 1)
+})
+
+test('caixa: pagamento explica impacto em inglês e trocar idioma preserva confirmação e foco', async t => {
+  const ui = await mount(t, cases[2])
+  await act(() => document.querySelector('[aria-label="Excluir Diária de João"]').click())
+  const focus = document.activeElement
+  assert.match(ui.group().textContent, /aumentará/)
+  assert.match(ui.group().textContent, /não estorna/)
+  assert.ok(ui.trigger().disabled)
+  await act(() => base['@/lib/locale-store'].setLocale('en'))
+  assert.equal(document.activeElement, focus)
+  assert.match(ui.group().textContent, /R\$150\.00/)
+  assert.match(ui.group().textContent, /increase by this amount/)
+  assert.match(ui.group().textContent, /does not reverse the payment/)
+  assert.match(ui.group().textContent, /Diária de João/)
+  assert.equal(ui.requests.length, 0)
+  await act(() => ui.cancel().click())
+  assert.equal(document.activeElement.getAttribute('aria-label'), 'Delete Diária de João')
+  assert.equal(ui.group(), null)
 })

@@ -8,6 +8,7 @@ import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
 import { useDataLoad } from "@/app/hooks/useDataLoad";
 import { LoadFeedback } from "@/app/components/LoadFeedback";
+import { WorkerPicker, type WorkerOption } from "@/app/components/WorkerPicker";
 import { DeleteConfirmation } from "@/app/components/DeleteConfirmation";
 import { loadAllRows, requireData, LoadError } from "@/lib/load-data";
 import Link from "next/link";
@@ -36,11 +37,6 @@ interface Material {
   preco_total: number; 
 }
 
-interface Funcionario { 
-  id: number; 
-  nome: string; 
-  valor_diaria: number; 
-}
 interface Transacao { 
   id: number; 
   tipo: "RECEBIMENTO_CLIENTE" | "PAGAMENTO_FUNCIONARIO"; 
@@ -83,8 +79,8 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   const transacaoTrigger = useRef<HTMLButtonElement | null>(null);
   const caixaHeading = useRef<HTMLHeadingElement>(null);
   const [transacoes, setTransacoes] = useState<Transacao[]>([]);
-  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
-  const [novaTransacao, setNovaTransacao] = useState({ tipo: "RECEBIMENTO_CLIENTE", valor: "", descricao: "", funcionario_id: "" });
+  const [funcionarioSelecionado, setFuncionarioSelecionado] = useState<WorkerOption | null>(null);
+  const [novaTransacao, setNovaTransacao] = useState({ tipo: "RECEBIMENTO_CLIENTE", valor: "", descricao: "" });
   const salvandoCaixa = isPending("nova-transacao");
   const salvandoTarefa = isPending("nova-tarefa");
 
@@ -103,7 +99,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
     // Valida a obra antes de buscar seus dados. As consultas restantes são independentes.
     const projeto = requireData(await supabase.from("projetos").select("titulo")
       .eq("id", projetoId).abortSignal(signal).maybeSingle<{ titulo: string }>(), "Obra não encontrada ou sem acesso.");
-    const [tarefas, materiais, transacoes, funcionarios, auth] = await Promise.all([
+    const [tarefas, materiais, transacoes, auth] = await Promise.all([
       loadAllRows<Tarefa>((from, to) => supabase.from("tarefas")
         .select("id, nome, concluida, projeto_id", { count: "exact" }).eq("projeto_id", projetoId)
         .order("criado_em").order("id").range(from, to).abortSignal(signal), signal),
@@ -114,20 +110,16 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
         .select("id, tipo, valor, data, descricao, funcionario_id, funcionarios(nome)", { count: "exact" }).eq("projeto_id", projetoId)
         .order("id", { ascending: false }).range(from, to).abortSignal(signal)
         .overrideTypes<Transacao[], { merge: false }>(), signal),
-      loadAllRows<Funcionario>((from, to) => supabase.from("funcionarios")
-        .select("id, nome, valor_diaria", { count: "exact" }).order("nome").order("id")
-        .range(from, to).abortSignal(signal), signal),
       supabase.auth.getUser(),
     ]);
     if (auth.error || !auth.data.user) throw new LoadError("Não foi possível validar sua sessão. Tente novamente ou entre novamente.");
-    return { projeto, tarefas, materiais, transacoes, funcionarios, user: auth.data.user };
+    return { projeto, tarefas, materiais, transacoes, user: auth.data.user };
   }, [projetoId]);
   const aplicarDadosDaObra = useCallback((data: Awaited<ReturnType<typeof carregarDadosDaObra>>) => {
     setTituloObra(data.projeto.titulo);
     setTarefas(data.tarefas);
     setMateriais(data.materiais);
     setTransacoes(data.transacoes);
-    setFuncionarios(data.funcionarios);
     setNomeProfissional(data.user.user_metadata.nome || "");
     setTelefoneContato(data.user.user_metadata.telefone || "");
   }, []);
@@ -246,19 +238,18 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   };
 
   /* ================== LÓGICA FINANCEIRA ================== */
-  const handleSelecionarFuncionario = (idStr: string) => {
-    const func = funcionarios.find(f => f.id.toString() === idStr);
-    if (func) {
-      setNovaTransacao({ ...novaTransacao, funcionario_id: idStr, valor: (func.valor_diaria ?? 0).toString().replace(".", ",") });
-    } else {
-      setNovaTransacao({ ...novaTransacao, funcionario_id: idStr });
-    }
+  const handleSelecionarFuncionario = (func: WorkerOption | null) => {
+    setFuncionarioSelecionado(func);
+    if (func) setNovaTransacao(prev => ({ ...prev, valor: (func.valor_diaria ?? 0).toString().replace(".", ",") }));
   };
 
   const registrarTransacao = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!novaTransacao.valor || !novaTransacao.descricao) return toast.error(notice("Preencha o valor e a descrição."));
     
+    if (novaTransacao.tipo === "PAGAMENTO_FUNCIONARIO" && !funcionarioSelecionado) {
+      return toast.error(notice("Selecione o profissional..."));
+    }
     const valor = parseMoney(novaTransacao.valor, { allowZero: false });
     if (!valor.ok) return toast.error(notice(`Lançamento: ${valor.error}`));
 
@@ -274,8 +265,8 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
       valor: valor.value,
       descricao: novaTransacao.descricao 
     };
-    if (novaTransacao.tipo === "PAGAMENTO_FUNCIONARIO" && novaTransacao.funcionario_id) {
-      payload.funcionario_id = parseInt(novaTransacao.funcionario_id);
+    if (novaTransacao.tipo === "PAGAMENTO_FUNCIONARIO" && funcionarioSelecionado) {
+      payload.funcionario_id = funcionarioSelecionado.id;
     }
 
     await run({
@@ -285,9 +276,10 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
       request: () => supabase.from("financeiro_obra").insert([payload])
         .select("id, tipo, valor, data, descricao, funcionario_id").single<Transacao>(),
       onConfirmed: (transacao) => {
-        const funcionario = funcionarios.find(f => f.id === transacao.funcionario_id);
+        const funcionario = funcionarioSelecionado?.id === transacao.funcionario_id ? funcionarioSelecionado : null;
         setTransacoes(prev => [{ ...transacao, funcionarios: funcionario ? { nome: funcionario.nome } : undefined }, ...prev]);
-        setNovaTransacao({ tipo: "RECEBIMENTO_CLIENTE", valor: "", descricao: "", funcionario_id: "" });
+        setNovaTransacao({ tipo: "RECEBIMENTO_CLIENTE", valor: "", descricao: "" });
+        setFuncionarioSelecionado(null);
       },
     });
   };
@@ -480,16 +472,14 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
               
               <div className="p-4 border-b border-zinc-200 bg-white">
                 <form onSubmit={registrarTransacao} className="flex flex-col gap-3">
-                  <select className="p-3 border border-zinc-300 rounded-xl text-sm font-bold outline-none bg-zinc-50 text-zinc-900 focus:ring-2 focus:ring-emerald-600" disabled={salvandoCaixa} aria-label={p("Tipo de lançamento")} value={novaTransacao.tipo} onChange={(e) => setNovaTransacao({ ...novaTransacao, tipo: e.target.value as "RECEBIMENTO_CLIENTE" | "PAGAMENTO_FUNCIONARIO", funcionario_id: "" })}>
+                  <select className="p-3 border border-zinc-300 rounded-xl text-sm font-bold outline-none bg-zinc-50 text-zinc-900 focus:ring-2 focus:ring-emerald-600" disabled={salvandoCaixa} aria-label={p("Tipo de lançamento")} value={novaTransacao.tipo} onChange={(e) => { setFuncionarioSelecionado(null); setNovaTransacao({ ...novaTransacao, tipo: e.target.value }); }}>
                     <option value="RECEBIMENTO_CLIENTE">{p("Entrada: Dinheiro do Cliente")}</option>
                     <option value="PAGAMENTO_FUNCIONARIO">{p("Saída: Pagamento da Equipe")}</option>
                   </select>
 
                   {novaTransacao.tipo === "PAGAMENTO_FUNCIONARIO" && (
-                    <select className="p-3 border border-zinc-300 rounded-xl text-sm outline-none bg-white text-zinc-900 focus:ring-2 focus:ring-emerald-600" disabled={salvandoCaixa} aria-label={p("Profissional")} value={novaTransacao.funcionario_id} onChange={(e) => handleSelecionarFuncionario(e.target.value)} required>
-                      <option value="" disabled hidden>{p("Selecione o profissional...")}</option>
-                      {funcionarios.map(f => <option key={f.id} value={f.id}>{f.nome} ({p("Diária")}: {formatBRL(locale, f.valor_diaria ?? 0)})</option>)}
-                    </select>
+                    <WorkerPicker id="profissional-caixa" selected={funcionarioSelecionado}
+                      onSelect={handleSelecionarFuncionario} disabled={salvandoCaixa} />
                   )}
 
                   <div className="flex flex-col sm:flex-row gap-3">

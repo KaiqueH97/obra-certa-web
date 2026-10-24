@@ -2,6 +2,9 @@ import type { Locale } from "./i18n";
 
 // Chaves são os textos originais; nunca aplicar este catálogo a dados cadastrados.
 const english = {
+  "Buscar profissional pelo nome": "Search workers by name",
+  "Profissional selecionado: {name}": "Selected worker: {name}",
+  "Nenhum profissional encontrado nesta busca.": "No workers found for this search.",
   "Buscar obra pelo nome": "Search projects by name",
   "Buscar": "Search",
   "Obra selecionada: {name}": "Selected project: {name}",

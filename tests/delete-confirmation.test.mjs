@@ -54,7 +54,7 @@ async function mount(t, config, timeoutMs = 20000) {
   const destinations = []
   let authEvent
   let response = { data: { id: 7 }, error: null }
-  let records = Array.isArray(config.data) ? [...config.data] : []
+  let records = Array.isArray(config.data) ? [...config.data] : [...(config.data.funcionarios ?? [])]
   const toast = Object.assign(() => { throw new Error('Confirmação não pode usar toast global') }, {
     dismiss: id => { assert.equal(id, 'mutation', 'Deve dispensar somente o toast da gravação'); notices.push(['dismiss', id]) },
     loading: message => { notices.push(['loading', message]); return 'mutation' },
@@ -90,12 +90,17 @@ async function mount(t, config, timeoutMs = 20000) {
   const actions = loadTs(new URL('../app/hooks/useConfirmedMutation.ts', import.meta.url), {
     ...base, '@/lib/confirmed-mutation': { ...mutation, createMutationRunner: (notices, onPending, onUnconfirmed) => mutation.createMutationRunner(notices, onPending, onUnconfirmed, timeoutMs) }, 'react-hot-toast': { default: toast },
   })
+  const workerPicker = loadTs(new URL('../app/components/WorkerPicker.tsx', import.meta.url), {
+    ...base, '@/lib/supabase': { supabase }, '@/lib/load-data': loads, '@/lib/pagination': pages,
+    '@/app/hooks/useDataLoad': loadHooks, '@/app/components/LoadFeedback': feedback,
+  })
   const { default: Page } = loadTs(new URL(config.file, import.meta.url), {
     ...base, 'react-hot-toast': { default: toast }, 'lucide-react': icons,
     'next/link': { default: props => h('a', props) },
     'next/navigation': { useParams: () => ({ id: '42' }) },
     '@/lib/supabase': { supabase }, '@/lib/load-data': loads, '@/lib/money': money, '@/lib/pagination': pages,
     '@/lib/confirmed-mutation': mutation, '@/app/hooks/useConfirmedMutation': actions, '@/app/components/MutationGuard': guard,
+    '@/app/components/WorkerPicker': workerPicker,
     '@/app/components/DeleteConfirmation': confirmation, '@/app/components/LoadFeedback': feedback,
     '@/app/hooks/useDataLoad': config.name === 'equipe' ? loadHooks : { useDataLoad: function useFakeDataLoad(load, apply) {
       React.useEffect(() => { reads.push(config.data); apply(config.data) }, [apply])
@@ -359,4 +364,39 @@ test('caixa: pagamento explica impacto em inglês e trocar idioma preserva confi
   await act(() => ui.cancel().click())
   assert.equal(document.activeElement.getAttribute('aria-label'), 'Delete Diária de João')
   assert.equal(ui.group(), null)
+})
+
+test('caixa: seleção preenche diária, exige profissional e preserva valor editado até confirmar', async t => {
+  const ui = await mount(t, { ...cases[2], data: { ...cases[2].data,
+    funcionarios: [{ id: 81, nome: 'Ana Teste', valor_diaria: 180.5 }],
+  } })
+  assert.equal(document.querySelector('#profissional-caixa'), null)
+  const change = async (element, value) => act(() => {
+    if (element.tagName === 'INPUT') Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(element, value)
+    else element.value = value
+    element.dispatchEvent(new window.Event(element.tagName === 'INPUT' ? 'input' : 'change', { bubbles: true }))
+  })
+  await change(document.querySelector('[aria-label="Tipo de lançamento"]'), 'PAGAMENTO_FUNCIONARIO')
+  const form = document.querySelector('#profissional-caixa').closest('form')
+  const submit = () => act(() => form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })))
+  await change(document.querySelector('[aria-label="Descrição"]'), 'Pagamento semanal')
+  await change(document.querySelector('[aria-label="Valor em reais"]'), '100')
+  await submit()
+  assert.equal(ui.requests.length, 0)
+  await change(document.querySelector('#profissional-caixa'), '81')
+  assert.equal(document.querySelector('[aria-label="Valor em reais"]').value, '180,5')
+  await change(document.querySelector('[aria-label="Valor em reais"]'), '250,75')
+  await act(() => base['@/lib/locale-store'].setLocale('en'))
+  assert.equal(document.querySelector('[aria-label="Amount in BRL"]').value, '250,75')
+  let resolve
+  ui.setResponse(new Promise(done => { resolve = done }))
+  await submit()
+  assert.equal(ui.requests.length, 1)
+  assert.equal(ui.requests[0].payload[0].funcionario_id, 81)
+  assert.equal(ui.requests[0].payload[0].valor, 250.75)
+  assert.ok(document.querySelector('#profissional-caixa').disabled)
+  await act(() => resolve({ data: { id: 101, ...ui.requests[0].payload[0], data: '2026-10-24' }, error: null }))
+  assert.equal(document.querySelector('#profissional-caixa'), null)
+  assert.match(document.body.textContent, /Ana Teste/)
+  assert.equal(document.querySelector('[aria-label="Description"]').value, '')
 })

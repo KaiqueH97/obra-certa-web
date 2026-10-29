@@ -3,11 +3,14 @@
 import { usePrivateLocale } from "@/app/hooks/usePrivateLocale";
 import { formatBRL, materialQuote } from "@/lib/private-i18n";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
 import { useDataLoad } from "@/app/hooks/useDataLoad";
 import { LoadFeedback } from "@/app/components/LoadFeedback";
+import { useCashPage } from "@/app/hooks/useCashPage";
+import { CASH_PAGE_SIZE, type CashTransaction } from "@/lib/cash-page";
+import { ProjectTasks } from "@/app/components/ProjectTasks";
 import { WorkerPicker, type WorkerOption } from "@/app/components/WorkerPicker";
 import { DeleteConfirmation } from "@/app/components/DeleteConfirmation";
 import { loadAllRows, requireData, LoadError } from "@/lib/load-data";
@@ -18,16 +21,9 @@ import { parseMoney } from "@/lib/money";
 import toast from "react-hot-toast";
 import { 
   ArrowLeft, ShoppingCart, CheckSquare, MessageCircle, 
-  Edit2, Trash2, Plus, Calculator, X, Save, Check,
+  Edit2, Trash2, Plus, Calculator, X, Save,
   TrendingUp, TrendingDown, Wallet, Users
 } from "lucide-react";
-
-interface Tarefa {
-  id: number;
-  nome: string;
-  concluida: boolean;
-  projeto_id: number;
-}
 
 interface Material {
   id: number;
@@ -35,16 +31,6 @@ interface Material {
   quantidade: string;
   projeto_id: number;
   preco_total: number; 
-}
-
-interface Transacao { 
-  id: number; 
-  tipo: "RECEBIMENTO_CLIENTE" | "PAGAMENTO_FUNCIONARIO"; 
-  valor: number; 
-  data: string; 
-  descricao: string; 
-  funcionario_id?: number; 
-  funcionarios?: { nome: string }; // Join do banco
 }
 
 export default function ProjetoPage() {
@@ -58,11 +44,9 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   const { run, isPending, requiresReload } = useConfirmedMutation();
   const [precosEditados, setPrecosEditados] = useState<Record<number, string>>({});
   const [tituloObra, setTituloObra] = useState("Carregando...");
-  const [tarefas, setTarefas] = useState<Tarefa[]>([]);
   const [materiais, setMateriais] = useState<Material[]>([]);
   const [materialExcluindo, setMaterialExcluindo] = useState<number | null>(null);
   const exclusaoTrigger = useRef<HTMLButtonElement | null>(null);
-  const [novaTarefa, setNovaTarefa] = useState("");
   
   // Agora temos 3 abas
   const [abaAtiva, setAbaAtiva] = useState<"materiais" | "tarefas" | "caixa">("materiais");
@@ -78,20 +62,36 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   const [transacaoExcluindo, setTransacaoExcluindo] = useState<number | null>(null);
   const transacaoTrigger = useRef<HTMLButtonElement | null>(null);
   const caixaHeading = useRef<HTMLHeadingElement>(null);
-  const [transacoes, setTransacoes] = useState<Transacao[]>([]);
+  const caixa = useCashPage(projetoId);
+  const transacoes = caixa.data?.transacoes ?? [];
+  const caixaPagina = caixa.data?.pagina ?? 0;
+  const caixaTotal = caixa.data?.total ?? 0;
+  const focoCaixa = useRef(false);
+  useEffect(() => {
+    if (caixa.ready && focoCaixa.current) {
+      caixaHeading.current?.focus();
+      focoCaixa.current = false;
+    }
+  }, [caixa.ready]);
+  const atualizarCaixa = (pagina: number) => {
+    focoCaixa.current = true;
+    caixa.refresh(pagina);
+  };
   const [funcionarioSelecionado, setFuncionarioSelecionado] = useState<WorkerOption | null>(null);
   const [novaTransacao, setNovaTransacao] = useState({ tipo: "RECEBIMENTO_CLIENTE", valor: "", descricao: "" });
   const salvandoCaixa = isPending("nova-transacao");
-  const salvandoTarefa = isPending("nova-tarefa");
 
-  // Cálculos Automáticos
+  const caixaOcupado = salvandoCaixa || transacoes.some(t => isPending(`transacao-${t.id}`));
+  const bloquearCaixa = !caixa.ready || caixaOcupado || transacaoExcluindo !== null || requiresReload;
+
+  // Materiais ainda são carregados integralmente para cotação.
   const custoMateriais = materiais.reduce((acumulador, item) => {
     const valor = typeof item.preco_total === 'string' ? parseFloat(item.preco_total) : item.preco_total;
     return acumulador + (valor || 0);
   }, 0);
 
-  const totalRecebido = transacoes.filter(t => t.tipo === "RECEBIMENTO_CLIENTE").reduce((acc, item) => acc + item.valor, 0);
-  const totalMaoDeObra = transacoes.filter(t => t.tipo === "PAGAMENTO_FUNCIONARIO").reduce((acc, item) => acc + item.valor, 0);
+  const totalRecebido = caixa.data?.entradas ?? 0;
+  const totalMaoDeObra = caixa.data?.pagamentos ?? 0;
   const lucroAtual = totalRecebido - custoMateriais - totalMaoDeObra;
 
   const carregarDadosDaObra = useCallback(async (signal: AbortSignal) => {
@@ -99,27 +99,18 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
     // Valida a obra antes de buscar seus dados. As consultas restantes são independentes.
     const projeto = requireData(await supabase.from("projetos").select("titulo")
       .eq("id", projetoId).abortSignal(signal).maybeSingle<{ titulo: string }>(), "Obra não encontrada ou sem acesso.");
-    const [tarefas, materiais, transacoes, auth] = await Promise.all([
-      loadAllRows<Tarefa>((from, to) => supabase.from("tarefas")
-        .select("id, nome, concluida, projeto_id", { count: "exact" }).eq("projeto_id", projetoId)
-        .order("criado_em").order("id").range(from, to).abortSignal(signal), signal),
+    const [materiais, auth] = await Promise.all([
       loadAllRows<Material>((from, to) => supabase.from("materiais_projeto")
         .select("id, nome, quantidade, projeto_id, preco_total", { count: "exact" }).eq("projeto_id", projetoId)
         .order("id", { ascending: false }).range(from, to).abortSignal(signal), signal),
-      loadAllRows<Transacao>((from, to) => supabase.from("financeiro_obra")
-        .select("id, tipo, valor, data, descricao, funcionario_id, funcionarios(nome)", { count: "exact" }).eq("projeto_id", projetoId)
-        .order("id", { ascending: false }).range(from, to).abortSignal(signal)
-        .overrideTypes<Transacao[], { merge: false }>(), signal),
       supabase.auth.getUser(),
     ]);
     if (auth.error || !auth.data.user) throw new LoadError("Não foi possível validar sua sessão. Tente novamente ou entre novamente.");
-    return { projeto, tarefas, materiais, transacoes, user: auth.data.user };
+    return { projeto, materiais, user: auth.data.user };
   }, [projetoId]);
   const aplicarDadosDaObra = useCallback((data: Awaited<ReturnType<typeof carregarDadosDaObra>>) => {
     setTituloObra(data.projeto.titulo);
-    setTarefas(data.tarefas);
     setMateriais(data.materiais);
-    setTransacoes(data.transacoes);
     setNomeProfissional(data.user.user_metadata.nome || "");
     setTelefoneContato(data.user.user_metadata.telefone || "");
   }, []);
@@ -202,34 +193,6 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
     });
   };
 
-  const criarTarefa = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!novaTarefa.trim()) return;
-    await run({
-      key: "nova-tarefa",
-      loading: "Adicionando tarefa...",
-      success: "Tarefa adicionada!",
-      request: () => supabase.from("tarefas").insert([{ nome: novaTarefa, projeto_id: projetoId }])
-        .select("id, nome, concluida, projeto_id").single<Tarefa>(),
-      onConfirmed: (tarefa) => {
-        setTarefas(prev => [...prev, tarefa]);
-        setNovaTarefa("");
-      },
-    });
-  };
-
-  const alternarConclusao = async (id: number, statusAtual: boolean) => {
-    await run({
-      key: `tarefa-${id}`,
-      loading: "Atualizando tarefa...",
-      success: "Tarefa atualizada!",
-      request: () => supabase.from("tarefas").update({ concluida: !statusAtual })
-        .eq("id", id).eq("projeto_id", projetoId)
-        .select("id, nome, concluida, projeto_id").single<Tarefa>(),
-      onConfirmed: (tarefa) => setTarefas(prev => prev.map(item => item.id === id ? tarefa : item)),
-    });
-  };
-
   const solicitarOrcamentoWhatsApp = () => {
     const textoMensagem = materialQuote(locale, {
       worker: nomeProfissional, project: tituloObra, phone: telefoneContato, materials: materiais,
@@ -245,6 +208,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
 
   const registrarTransacao = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (bloquearCaixa) return;
     if (!novaTransacao.valor || !novaTransacao.descricao) return toast.error(notice("Preencha o valor e a descrição."));
     
     if (novaTransacao.tipo === "PAGAMENTO_FUNCIONARIO" && !funcionarioSelecionado) {
@@ -274,10 +238,9 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
       loading: "Registrando no caixa...",
       success: "Lançamento registrado!",
       request: () => supabase.from("financeiro_obra").insert([payload])
-        .select("id, tipo, valor, data, descricao, funcionario_id").single<Transacao>(),
-      onConfirmed: (transacao) => {
-        const funcionario = funcionarioSelecionado?.id === transacao.funcionario_id ? funcionarioSelecionado : null;
-        setTransacoes(prev => [{ ...transacao, funcionarios: funcionario ? { nome: funcionario.nome } : undefined }, ...prev]);
+        .select("id, tipo, valor, data, descricao, funcionario_id").single<CashTransaction>(),
+      onConfirmed: () => {
+        atualizarCaixa(0);
         setNovaTransacao({ tipo: "RECEBIMENTO_CLIENTE", valor: "", descricao: "" });
         setFuncionarioSelecionado(null);
       },
@@ -290,15 +253,15 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   };
 
   const excluirTransacao = async (id: number) => {
-    if (transacaoExcluindo !== id || requiresReload) return;
+    if (transacaoExcluindo !== id || requiresReload || !caixa.ready || caixaOcupado) return;
     await run({
       key: `transacao-${id}`,
       loading: "Removendo lançamento...",
       success: "Lançamento removido.",
       request: () => supabase.from("financeiro_obra").delete()
         .eq("id", id).eq("projeto_id", projetoId).select("id").single<{ id: number }>(),
-      onConfirmed: (transacao) => {
-        setTransacoes(prev => prev.filter(t => t.id !== transacao.id));
+      onConfirmed: () => {
+        atualizarCaixa(caixaPagina);
         setTransacaoExcluindo(null);
         transacaoTrigger.current = null;
         caixaHeading.current?.focus();
@@ -344,7 +307,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white p-4 rounded-xl border border-zinc-200 shadow-sm">
             <p className="text-xs font-bold text-zinc-600 uppercase flex items-center gap-1"><TrendingUp size={14} className="text-emerald-600"/> {p("Entradas")}</p>
-            <p className="text-lg md:text-2xl font-black text-zinc-900 mt-1">{formatBRL(locale, totalRecebido)}</p>
+            <p className="text-lg md:text-2xl font-black text-zinc-900 mt-1">{caixa.ready ? formatBRL(locale, totalRecebido) : p("Indisponível")}</p>
           </div>
           <div className="bg-white p-4 rounded-xl border border-zinc-200 shadow-sm">
             <p className="text-xs font-bold text-zinc-600 uppercase flex items-center gap-1"><ShoppingCart size={14} className="text-orange-600"/> {p("Materiais")}</p>
@@ -352,11 +315,11 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
           </div>
           <div className="bg-white p-4 rounded-xl border border-zinc-200 shadow-sm">
             <p className="text-xs font-bold text-zinc-600 uppercase flex items-center gap-1"><Users size={14} className="text-blue-600"/> {p("Equipe")}</p>
-            <p className="text-lg md:text-2xl font-black text-zinc-900 mt-1">{formatBRL(locale, totalMaoDeObra)}</p>
+            <p className="text-lg md:text-2xl font-black text-zinc-900 mt-1">{caixa.ready ? formatBRL(locale, totalMaoDeObra) : p("Indisponível")}</p>
           </div>
-          <div className={`p-4 rounded-xl border shadow-sm ${lucroAtual >= 0 ? 'bg-emerald-900 border-emerald-950 text-white' : 'bg-red-900 border-red-950 text-white'}`}>
+          <div className={`p-4 rounded-xl border shadow-sm ${!caixa.ready ? 'bg-zinc-100 border-zinc-300 text-zinc-900' : lucroAtual >= 0 ? 'bg-emerald-900 border-emerald-950 text-white' : 'bg-red-900 border-red-950 text-white'}`}>
             <p className="text-xs font-bold opacity-90 uppercase flex items-center gap-1"><Wallet size={14}/> {p("Lucro Atual")}</p>
-            <p className="text-lg md:text-2xl font-black mt-1">{formatBRL(locale, lucroAtual)}</p>
+            <p className="text-lg md:text-2xl font-black mt-1">{caixa.ready ? formatBRL(locale, lucroAtual) : p("Indisponível")}</p>
           </div>
         </div>
       )}
@@ -472,14 +435,14 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
               
               <div className="p-4 border-b border-zinc-200 bg-white">
                 <form onSubmit={registrarTransacao} className="flex flex-col gap-3">
-                  <select className="p-3 border border-zinc-300 rounded-xl text-sm font-bold outline-none bg-zinc-50 text-zinc-900 focus:ring-2 focus:ring-emerald-600" disabled={salvandoCaixa} aria-label={p("Tipo de lançamento")} value={novaTransacao.tipo} onChange={(e) => { setFuncionarioSelecionado(null); setNovaTransacao({ ...novaTransacao, tipo: e.target.value }); }}>
+                  <select className="p-3 border border-zinc-300 rounded-xl text-sm font-bold outline-none bg-zinc-50 text-zinc-900 focus:ring-2 focus:ring-emerald-600" disabled={bloquearCaixa} aria-label={p("Tipo de lançamento")} value={novaTransacao.tipo} onChange={(e) => { setFuncionarioSelecionado(null); setNovaTransacao({ ...novaTransacao, tipo: e.target.value }); }}>
                     <option value="RECEBIMENTO_CLIENTE">{p("Entrada: Dinheiro do Cliente")}</option>
                     <option value="PAGAMENTO_FUNCIONARIO">{p("Saída: Pagamento da Equipe")}</option>
                   </select>
 
                   {novaTransacao.tipo === "PAGAMENTO_FUNCIONARIO" && (
                     <WorkerPicker id="profissional-caixa" selected={funcionarioSelecionado}
-                      onSelect={handleSelecionarFuncionario} disabled={salvandoCaixa} />
+                      onSelect={handleSelecionarFuncionario} disabled={bloquearCaixa} />
                   )}
 
                   <div className="flex flex-col sm:flex-row gap-3">
@@ -487,7 +450,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                       type="text" 
                       className="sm:w-1/2 p-3 border border-zinc-300 rounded-xl text-sm text-zinc-900 placeholder-zinc-500 outline-none focus:ring-2 focus:ring-emerald-600 transition-all" 
                       placeholder={novaTransacao.tipo === "RECEBIMENTO_CLIENTE" ? p("Ex: Sinal / 1ª Parcela") : p("Ex: Adiantamento / 3 dias")}
-                      disabled={salvandoCaixa} aria-label={p("Descrição")} value={novaTransacao.descricao}
+                      disabled={bloquearCaixa} aria-label={p("Descrição")} value={novaTransacao.descricao}
                       onChange={(e) => setNovaTransacao({ ...novaTransacao, descricao: e.target.value })} 
                       required 
                     />
@@ -498,7 +461,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                         type="text" 
                         inputMode="decimal" 
                         className="w-full py-3 pl-2 outline-none text-right text-sm font-bold text-zinc-900 placeholder-zinc-400 bg-transparent" 
-                        disabled={salvandoCaixa} aria-label={p("Valor em reais")} value={novaTransacao.valor}
+                        disabled={bloquearCaixa} aria-label={p("Valor em reais")} value={novaTransacao.valor}
                         onChange={(e) => setNovaTransacao({ ...novaTransacao, valor: e.target.value })} 
                         placeholder={p("0,00")}
                         required 
@@ -506,14 +469,14 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                     </div>
                   </div>
                   
-                  <button type="submit" disabled={salvandoCaixa} className="bg-emerald-700 text-white font-bold p-3 rounded-xl hover:bg-emerald-800 transition flex items-center justify-center gap-2 text-sm disabled:opacity-50 mt-1 shadow-sm">
+                  <button type="submit" disabled={bloquearCaixa} className="bg-emerald-700 text-white font-bold p-3 rounded-xl hover:bg-emerald-800 transition flex items-center justify-center gap-2 text-sm disabled:opacity-50 mt-1 shadow-sm">
                     <Plus size={16}/> {p("Lançar no Caixa")}
                   </button>
                 </form>
               </div>
 
               <div className="overflow-y-auto flex-1 p-3">
-                {transacoes.length === 0 ? <p className="text-center text-zinc-600 font-medium py-6 text-sm">{p("Nenhuma movimentação.")}</p> : (
+                {!caixa.ready ? <LoadFeedback error={caixa.error} retry={caixa.retry} /> : transacoes.length === 0 ? <p className="text-center text-zinc-600 font-medium py-6 text-sm">{p("Nenhuma movimentação.")}</p> : (
                   <ul className="space-y-2">
                     {transacoes.map(t => (
                       <li key={t.id} className="p-3 border border-zinc-200 rounded-xl bg-white shadow-sm hover:border-zinc-300 transition-colors">
@@ -523,15 +486,15 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                               {t.tipo === "RECEBIMENTO_CLIENTE" ? <TrendingUp size={16} className="text-emerald-700"/> : <TrendingDown size={16} className="text-red-700"/>}
                               <span className="font-bold text-zinc-900 text-sm">{t.tipo === "RECEBIMENTO_CLIENTE" ? p("Recebimento") : t.funcionarios?.nome || p("Equipe")}</span>
                             </div>
-                            <p className="text-xs font-medium text-zinc-600 mt-1 truncate max-w-37.5">{t.descricao}</p>
+                            <p className="text-xs font-medium text-zinc-600 mt-1 truncate max-w-37.5">{t.descricao ?? p("Sem descrição")}</p>
                           </div>
                           <div className="flex flex-col items-end gap-1">
                             <span className={`font-black text-sm ${t.tipo === "RECEBIMENTO_CLIENTE" ? "text-emerald-700" : "text-red-700"}`}>
                               {t.tipo === "RECEBIMENTO_CLIENTE" ? "+" : "-"} {formatBRL(locale, t.valor)}
                             </span>
-                            <button type="button" aria-label={p("Excluir {name}", { name: t.descricao })}
+                            <button type="button" aria-label={p("Excluir {name}", { name: t.descricao ?? p("Sem descrição") })}
                               aria-expanded={transacaoExcluindo === t.id}
-                              disabled={isPending(`transacao-${t.id}`) || (transacaoExcluindo !== null && transacaoExcluindo !== t.id)}
+                              disabled={caixaOcupado || (transacaoExcluindo !== null && transacaoExcluindo !== t.id)}
                               onClick={event => {
                                 transacaoTrigger.current = event.currentTarget;
                                 setTransacaoExcluindo(t.id);
@@ -541,7 +504,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                         </div>
                         {transacaoExcluindo === t.id && <div className="mt-3">
                           <DeleteConfirmation
-                            title={p("Excluir {name}?", { name: t.descricao })}
+                            title={p("Excluir {name}?", { name: t.descricao ?? p("Sem descrição") })}
                             description={p(t.tipo === "RECEBIMENTO_CLIENTE"
                               ? "Este recebimento de {value} será removido permanentemente. O saldo calculado da obra diminuirá nesse valor."
                               : "Este pagamento de {value} será removido permanentemente. O saldo calculado da obra aumentará nesse valor. Isso não estorna o pagamento ao profissional.",
@@ -556,48 +519,26 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                   </ul>
                 )}
               </div>
+              <p role="status" className="px-4 text-sm text-zinc-700">
+                {caixa.ready && p("{from}–{to} de {total} lançamentos", {
+                  from: caixaTotal ? caixaPagina * CASH_PAGE_SIZE + 1 : 0,
+                  to: caixaPagina * CASH_PAGE_SIZE + transacoes.length, total: caixaTotal,
+                })}
+              </p>
+              <nav aria-label={p("Paginação do caixa")} className="flex justify-between gap-2 p-4">
+                <button type="button" disabled={bloquearCaixa || caixaPagina === 0}
+                  onClick={() => atualizarCaixa(caixaPagina - 1)}
+                  className="min-h-11 rounded-lg border border-zinc-400 px-3 py-2 font-bold text-zinc-900 disabled:opacity-50">{p("Anterior")}</button>
+                <button type="button" disabled={bloquearCaixa || (caixaPagina + 1) * CASH_PAGE_SIZE >= caixaTotal}
+                  onClick={() => atualizarCaixa(caixaPagina + 1)}
+                  className="min-h-11 rounded-lg border border-zinc-400 px-3 py-2 font-bold text-zinc-900 disabled:opacity-50">{p("Próxima")}</button>
+              </nav>
             </div>
           </div>
 
           {/* COLUNA 3: TAREFAS */}
           <div className={`${abaAtiva === "tarefas" ? "block" : "hidden"} lg:block space-y-6`}>
-            <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden flex flex-col max-h-175">
-              <div className="p-4 border-b border-zinc-200 bg-zinc-50 flex items-center gap-2">
-                <CheckSquare size={20} className="text-blue-700" />
-                <h2 className="font-bold text-zinc-900">{p("Checklist da Obra")}</h2>
-              </div>
-
-              <div className="p-4 border-b border-zinc-200 bg-white">
-                <form onSubmit={criarTarefa} className="flex gap-2">
-                  <input type="text" className="flex-1 p-3 border border-zinc-300 rounded-xl text-zinc-900 outline-none focus:ring-2 focus:ring-blue-600 transition-all bg-zinc-50 focus:bg-white placeholder-zinc-500" placeholder={p("O que precisa ser feito?")} disabled={salvandoTarefa} aria-label={p("O que precisa ser feito?")} value={novaTarefa} onChange={(e) => setNovaTarefa(e.target.value)} />
-                  <button aria-label={p("Adicionar tarefa")} type="submit" disabled={salvandoTarefa || !novaTarefa.trim()} className="bg-zinc-900 text-white px-4 rounded-xl font-bold hover:bg-zinc-800 transition disabled:opacity-50">
-                    <Plus size={20} />
-                  </button>
-                </form>
-              </div>
-
-              <div className="overflow-y-auto p-4 flex-1">
-                {tarefas.length === 0 ? (
-                  <div className="py-10 text-center flex flex-col items-center">
-                    <CheckSquare size={32} className="text-zinc-400 mb-2" />
-                    <p className="text-zinc-600 font-medium">{p("Sua lista está vazia.")}</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {tarefas.map((tarefa) => (
-                      <button type="button" disabled={isPending(`tarefa-${tarefa.id}`)} aria-pressed={tarefa.concluida} key={tarefa.id} onClick={() => alternarConclusao(tarefa.id, tarefa.concluida)} className={`w-full text-left disabled:opacity-50 p-4 rounded-xl border cursor-pointer flex items-center gap-3 transition-all ${tarefa.concluida ? "bg-emerald-50 border-emerald-200" : "bg-white border-zinc-200 hover:border-blue-400 shadow-sm hover:shadow"}`}>
-                        <span className={`shrink-0 w-6 h-6 rounded flex items-center justify-center border transition-colors ${tarefa.concluida ? "bg-emerald-600 border-emerald-600 text-white" : "border-zinc-300 bg-zinc-50"}`}>
-                          {tarefa.concluida && <Check size={14} strokeWidth={3} />}
-                        </span>
-                        <span className={`text-sm md:text-base font-semibold transition-all select-none ${tarefa.concluida ? "line-through text-emerald-700/80" : "text-zinc-800"}`}>
-                          {tarefa.nome}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            <ProjectTasks key={projetoId} projetoId={projetoId} />
           </div>
 
         </div>

@@ -15,6 +15,7 @@ const guard = loadTs(new URL('../app/components/MutationGuard.tsx', import.meta.
 const loads = loadTs(new URL('../lib/load-data.ts', import.meta.url))
 const pages = loadTs(new URL('../lib/pagination.ts', import.meta.url), { './load-data': loads })
 const loadHooks = loadTs(new URL('../app/hooks/useDataLoad.ts', import.meta.url), { ...base, '@/lib/load-data': loads })
+const cashParser = loadTs(new URL('../lib/cash-page.ts', import.meta.url), { './load-data': loads })
 const money = loadTs(new URL('../lib/money.ts', import.meta.url))
 const confirmation = loadTs(new URL('../app/components/DeleteConfirmation.tsx', import.meta.url), base)
 const feedback = loadTs(new URL('../app/components/LoadFeedback.tsx', import.meta.url), base)
@@ -51,6 +52,9 @@ async function mount(t, config, timeoutMs = 20000) {
   const reads = []
   const notices = []
   const requests = []
+  const cashReads = []
+  let cashOverride
+  let cashRecords = [...(config.data.transacoes ?? [])]
   const destinations = []
   let authEvent
   let response = { data: { id: 7 }, error: null }
@@ -62,6 +66,23 @@ async function mount(t, config, timeoutMs = 20000) {
     error: message => notices.push(['error', message]),
   })
   const supabase = {
+    rpc(name, args) {
+      assert.equal(name, 'pagina_caixa')
+      return { abortSignal(signal) {
+        cashReads.push({ ...args, signal })
+        if (cashOverride) return cashOverride(args)
+        const pagina = Math.min(args.p_pagina, Math.max(0, Math.ceil(cashRecords.length / 20) - 1))
+        const sorted = [...cashRecords].sort((a, b) => b.id - a.id)
+        return Promise.resolve({ error: null, data: {
+          projeto_id: 42, pagina, total: sorted.length,
+          entradas: sorted.filter(t => t.tipo === 'RECEBIMENTO_CLIENTE').reduce((sum, t) => sum + t.valor, 0),
+          pagamentos: sorted.filter(t => t.tipo === 'PAGAMENTO_FUNCIONARIO').reduce((sum, t) => sum + t.valor, 0),
+          transacoes: sorted.slice(pagina * 20, pagina * 20 + 20).map(t => ({
+            data: '2026-10-28', descricao: null, funcionario_id: null, funcionarios: null, ...t,
+          })),
+        } })
+      } }
+    },
     auth: {
       getUser: async () => ({ data: { user: { id: 'A' } }, error: null }),
       onAuthStateChange: callback => { authEvent = callback; return { data: { subscription: { unsubscribe() {} } } } },
@@ -76,10 +97,20 @@ async function mount(t, config, timeoutMs = 20000) {
         select(columns) { query.columns = columns; return chain },
         order() { return chain },
         range(from, to) { query.range = [from, to]; return chain },
-        abortSignal() { return Promise.resolve({ data: records.slice(query.range[0], query.range[1] + 1), count: records.length, error: null }) },
+        abortSignal() {
+          const rows = table === 'tarefas' ? (config.data.tarefas ?? []) : records
+          return Promise.resolve({ data: rows.slice(query.range[0], query.range[1] + 1), count: rows.length, error: null })
+        },
         async single() {
           requests.push(query)
           const result = await response
+          if (!result.error && result.data?.id && table === 'financeiro_obra') {
+            if (query.operation === 'delete') cashRecords = cashRecords.filter(t => t.id !== result.data.id)
+            if (query.operation === 'insert') {
+              const worker = records.find(w => w.id === result.data.funcionario_id)
+              cashRecords = [{ ...result.data, funcionarios: worker ? { nome: worker.nome } : null }, ...cashRecords]
+            }
+          }
           if (!result.error && result.data?.id) records = records.filter(row => row.id !== result.data.id)
           return result
         },
@@ -94,13 +125,23 @@ async function mount(t, config, timeoutMs = 20000) {
     ...base, '@/lib/supabase': { supabase }, '@/lib/load-data': loads, '@/lib/pagination': pages,
     '@/app/hooks/useDataLoad': loadHooks, '@/app/components/LoadFeedback': feedback,
   })
+  const tasks = loadTs(new URL('../app/components/ProjectTasks.tsx', import.meta.url), {
+    ...base, 'lucide-react': icons, '@/lib/supabase': { supabase }, '@/lib/load-data': loads, '@/lib/pagination': pages,
+    '@/app/hooks/useDataLoad': loadHooks, '@/app/hooks/useConfirmedMutation': actions,
+    './LoadFeedback': feedback, './MutationGuard': guard,
+  })
+  const cashHook = loadTs(new URL('../app/hooks/useCashPage.ts', import.meta.url), {
+    ...base, '@/lib/supabase': { supabase }, '@/lib/load-data': loads, '@/lib/cash-page': cashParser,
+    './useDataLoad': loadHooks,
+  })
   const { default: Page } = loadTs(new URL(config.file, import.meta.url), {
     ...base, 'react-hot-toast': { default: toast }, 'lucide-react': icons,
     'next/link': { default: props => h('a', props) },
     'next/navigation': { useParams: () => ({ id: '42' }) },
     '@/lib/supabase': { supabase }, '@/lib/load-data': loads, '@/lib/money': money, '@/lib/pagination': pages,
     '@/lib/confirmed-mutation': mutation, '@/app/hooks/useConfirmedMutation': actions, '@/app/components/MutationGuard': guard,
-    '@/app/components/WorkerPicker': workerPicker,
+    '@/app/hooks/useCashPage': cashHook, '@/lib/cash-page': cashParser,
+    '@/app/components/WorkerPicker': workerPicker, '@/app/components/ProjectTasks': tasks,
     '@/app/components/DeleteConfirmation': confirmation, '@/app/components/LoadFeedback': feedback,
     '@/app/hooks/useDataLoad': config.name === 'equipe' ? loadHooks : { useDataLoad: function useFakeDataLoad(load, apply) {
       React.useEffect(() => { reads.push(config.data); apply(config.data) }, [apply])
@@ -128,7 +169,8 @@ async function mount(t, config, timeoutMs = 20000) {
   const cancel = () => group().querySelectorAll('button')[0]
   const confirm = () => group().querySelectorAll('button')[1]
   return {
-    trigger, group, cancel, confirm, requests, notices, destinations, reads,
+    trigger, group, cancel, confirm, requests, notices, destinations, reads, cashReads,
+    setCashRead: value => { cashOverride = value },
     open: () => act(() => trigger().click()),
     setResponse: value => { response = value },
     leave: () => act(() => root.render(h(PrivateSessionBoundary, null, h('p', null, 'Outra página')))),
@@ -399,4 +441,82 @@ test('caixa: seleção preenche diária, exige profissional e preserva valor edi
   assert.equal(document.querySelector('#profissional-caixa'), null)
   assert.match(document.body.textContent, /Ana Teste/)
   assert.equal(document.querySelector('[aria-label="Description"]').value, '')
+})
+
+test('detalhes: falha nas tarefas fica local e não bloqueia caixa nem materiais', async t => {
+  const ui = await mount(t, { ...cases[1], data: { ...cases[1].data,
+    tarefas: [{ id: 2, nome: 'Resposta inválida', projeto_id: 999, concluida: false }],
+  } })
+  const section = document.querySelector('section[aria-label="Checklist da Obra"]')
+  assert.ok(section.querySelector('[role="alert"]'))
+  assert.ok(document.querySelector('[aria-label="Descrição"]'))
+  assert.equal(document.querySelector('[aria-label="Descrição"]').disabled, false)
+  assert.ok(ui.trigger())
+  assert.equal(ui.trigger().disabled, false)
+  assert.equal(document.querySelector('h1').textContent, 'Obra A')
+})
+
+test('caixa paginado: totais completos, 20 linhas, confirmação trava página e exclusão volta à página válida', async t => {
+  const transactions = Array.from({ length: 21 }, (_, i) => ({
+    id: i + 1, tipo: 'RECEBIMENTO_CLIENTE', valor: 10, descricao: 'Entrada ' + (i + 1), data: '2026-10-28',
+  }))
+  const ui = await mount(t, { ...cases[2], label: 'Entrada 1', data: { ...cases[2].data, transacoes: transactions } })
+  const nav = () => document.querySelector('nav[aria-label="Paginação do caixa"]')
+  const card = label => [...document.querySelectorAll('p')].find(p => p.textContent.trim() === label).parentElement.textContent
+  assert.match(card('Entradas'), /210,00/)
+  assert.equal(document.querySelectorAll('[aria-label^="Excluir Entrada"]').length, 20)
+  await act(() => nav().querySelectorAll('button')[1].click())
+  assert.equal(ui.cashReads.at(-1).p_pagina, 1)
+  assert.match(card('Entradas'), /210,00/)
+  assert.equal(document.querySelectorAll('[aria-label^="Excluir Entrada"]').length, 1)
+  await ui.open()
+  assert.ok(nav().querySelector('button').disabled)
+  ui.setResponse({ data: { id: 1 }, error: null })
+  await act(() => ui.confirm().click())
+  assert.match(card('Entradas'), /200,00/)
+  assert.ok(nav().querySelectorAll('button')[1].disabled)
+  assert.equal(document.querySelectorAll('[aria-label^="Excluir Entrada"]').length, 20)
+})
+
+test('caixa paginado: falha após excluir não zera saldo nem repete DELETE no retry', async t => {
+  const ui = await mount(t, cases[2])
+  await ui.open()
+  ui.setCashRead(() => Promise.resolve({ data: null, error: { message: 'offline' } }))
+  await act(() => ui.confirm().click())
+  assert.equal(ui.requests.length, 1)
+  const card = [...document.querySelectorAll('p')].find(p => p.textContent.trim() === 'Entradas').parentElement
+  assert.match(card.textContent, /Indisponível/)
+  assert.ok(document.querySelector('[aria-label="Descrição"]').disabled)
+  ui.setCashRead(undefined)
+  await act(() => [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Tentar novamente').click())
+  assert.equal(ui.requests.length, 1)
+  assert.match(card.textContent, /0,00/)
+})
+
+test('caixa paginado: criação na última página retorna ao início sem perder rascunho na troca de idioma', async t => {
+  const transactions = Array.from({ length: 21 }, (_, i) => ({
+    id: i + 1, tipo: 'RECEBIMENTO_CLIENTE', valor: 10, descricao: 'Entrada ' + (i + 1), data: '2026-10-28',
+  }))
+  const ui = await mount(t, { ...cases[2], data: { ...cases[2].data, transacoes: transactions } })
+  await act(() => document.querySelector('nav[aria-label="Paginação do caixa"]').querySelectorAll('button')[1].click())
+  const fill = (label, value) => act(() => {
+    const input = document.querySelector(`[aria-label="${label}"]`)
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, value)
+    input.dispatchEvent(new window.Event('input', { bubbles: true }))
+  })
+  await fill('Descrição', 'Nova entrada')
+  await fill('Valor em reais', '20,50')
+  const reads = ui.cashReads.length
+  await act(() => base['@/lib/locale-store'].setLocale('en'))
+  assert.equal(ui.cashReads.length, reads)
+  assert.equal(document.querySelector('[aria-label="Description"]').value, 'Nova entrada')
+  ui.setResponse({ data: { id: 22, tipo: 'RECEBIMENTO_CLIENTE', valor: 20.5, descricao: 'Nova entrada' }, error: null })
+  await act(() => document.querySelector('[aria-label="Description"]').closest('form')
+    .dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })))
+  assert.equal(ui.cashReads.at(-1).p_pagina, 0)
+  assert.equal(ui.requests.length, 1)
+  assert.equal(document.querySelector('[aria-label="Description"]').value, '')
+  assert.match(document.body.textContent, /1–20 of 22 transactions/)
+  assert.match(document.body.textContent, /230\.50/)
+  assert.ok(document.querySelector('[aria-label="Delete Nova entrada"]'))
 })

@@ -2,6 +2,14 @@ import type { Locale } from "./i18n";
 
 // Chaves são os textos originais; nunca aplicar este catálogo a dados cadastrados.
 const english = {
+  "Indisponível": "Unavailable",
+  "Sem descrição": "No description",
+  "Não foi possível confirmar o caixa da obra. Tente novamente.": "We could not verify the project cash flow. Please try again.",
+  "Paginação do caixa": "Cash flow pagination",
+  "{from}–{to} de {total} lançamentos": "{from}–{to} of {total} transactions",
+  "Página {page} de {total}": "Page {page} of {total}",
+  "Paginação das tarefas": "Task pagination",
+  "{from}–{to} de {total} tarefas": "{from}–{to} of {total} tasks",
   "Buscar profissional pelo nome": "Search workers by name",
   "Profissional selecionado: {name}": "Selected worker: {name}",
   "Nenhum profissional encontrado nesta busca.": "No workers found for this search.",

@@ -3,7 +3,7 @@
 import { usePrivateLocale } from "@/app/hooks/usePrivateLocale";
 import { formatBRL } from "@/lib/private-i18n";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useId } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
 import { useDataLoad } from "@/app/hooks/useDataLoad";
@@ -64,6 +64,15 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   const [materialEditando, setMaterialEditando] = useState<number | null>(null);
   const [nomeEditado, setNomeEditado] = useState("");
   const [qtdEditada, setQtdEditada] = useState("");
+  const botoesEditar = useRef<Record<number, HTMLButtonElement | null>>({});
+  const restaurarEdicao = useRef<number | null>(null);
+  useEffect(() => {
+    if (materialEditando === null && restaurarEdicao.current !== null) {
+      botoesEditar.current[restaurarEdicao.current]?.focus();
+      restaurarEdicao.current = null;
+    }
+  }, [materialEditando]);
+
   
   const [nomeProfissional, setNomeProfissional] = useState("");
   const [telefoneContato, setTelefoneContato] = useState("");
@@ -163,6 +172,12 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
     setMaterialEditando(item.id);
     setNomeEditado(item.nome);
     setQtdEditada(item.quantidade);
+  };
+
+  const cancelarEdicaoMaterial = () => {
+    if (bloquearMateriais || materialEditando === null) return;
+    restaurarEdicao.current = materialEditando;
+    setMaterialEditando(null);
   };
 
   const salvarEdicaoMaterial = async (id: number) => {
@@ -358,14 +373,14 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                     {materiais.map((item) => (
                       <li key={item.id} className="p-4 flex flex-col gap-3 hover:bg-zinc-50 transition-colors">
                         {materialEditando === item.id ? (
-                          <div className="flex flex-col sm:flex-row gap-3 bg-orange-50 p-3 rounded-xl border border-orange-300 animate-in fade-in">
-                            <input className="flex-1 p-3 border border-orange-300 rounded-lg text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 bg-white" disabled={materialBloqueado(item.id)} aria-label={p("Nome")} value={nomeEditado} onChange={(e) => setNomeEditado(e.target.value)} placeholder={p("Nome")} />
-                            <input className="w-full sm:w-32 p-3 border border-orange-300 rounded-lg text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 bg-white" disabled={materialBloqueado(item.id)} aria-label={p("Quantidade")} value={qtdEditada} onChange={(e) => setQtdEditada(e.target.value)} placeholder={p("Qtd")} />
-                            <div className="flex gap-2 w-full sm:w-auto">
-                              <button aria-label={p("Cancelar edição")} disabled={materialBloqueado(item.id)} onClick={() => setMaterialEditando(null)} className="flex-1 bg-zinc-200 text-zinc-800 p-3 rounded-lg font-bold hover:bg-zinc-300 flex items-center justify-center"><X size={18}/></button>
-                              <button aria-label={p("Salvar material")} disabled={materialBloqueado(item.id)} onClick={() => salvarEdicaoMaterial(item.id)} className="flex-1 bg-emerald-600 text-white p-3 rounded-lg font-bold hover:bg-emerald-700 flex items-center justify-center"><Save size={18}/></button>
-                            </div>
-                          </div>
+                          <EdicaoMaterial
+                            titulo={p("Editar {name}", { name: item.nome })}
+                            nome={nomeEditado} quantidade={qtdEditada}
+                            disabled={materialBloqueado(item.id)}
+                            onNome={setNomeEditado} onQuantidade={setQtdEditada}
+                            onCancel={cancelarEdicaoMaterial}
+                            onSave={() => { void salvarEdicaoMaterial(item.id); }}
+                          />
                         ) : (
                           <>
                             <div className="flex justify-between items-start">
@@ -374,7 +389,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                                 <span className="inline-block bg-orange-100 text-orange-800 py-1 px-3 rounded-full font-bold text-xs mt-1">{item.quantidade}</span>
                               </div>
                               <div className="flex gap-1">
-                                <button aria-label={p("Editar {name}", { name: item.nome })} disabled={materialBloqueado(item.id)} onClick={() => iniciarEdicaoMaterial(item)} className="p-2 text-zinc-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"><Edit2 size={18} /></button>
+                                <button type="button" ref={node => { botoesEditar.current[item.id] = node; }} aria-label={p("Editar {name}", { name: item.nome })} disabled={materialBloqueado(item.id)} onClick={() => iniciarEdicaoMaterial(item)} className="min-h-11 min-w-11 p-2 text-zinc-700 hover:text-blue-800 rounded-lg hover:bg-blue-50 transition-colors focus-visible:outline-2 focus-visible:outline-blue-800"><Edit2 size={18} /></button>
                                 <button type="button" aria-label={p("Excluir {name}", { name: item.nome })} aria-expanded={materialExcluindo === item.id} disabled={materialBloqueado(item.id)} onClick={event => {
                                   exclusaoTrigger.current = event.currentTarget;
                                   setMaterialEditando(null);
@@ -383,10 +398,10 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                               </div>
                             </div>
                             <div className="flex justify-between items-center bg-zinc-50 p-3 rounded-xl border border-zinc-200 mt-1">
-                              <label className="text-xs font-bold text-zinc-600 uppercase tracking-wide">{p("Custo Registrado")}</label>
+                              <label htmlFor={`preco-${projetoId}-${item.id}`} className="text-xs font-bold text-zinc-700 uppercase tracking-wide">{p("Custo Registrado")}</label>
                               <div className="flex items-center text-emerald-800 font-bold bg-white px-3 py-1.5 rounded-lg border border-zinc-300 shadow-sm focus-within:ring-2 focus-within:ring-emerald-600 transition-all">
                                 <span className="text-zinc-500 mr-1 text-sm">R$</span>
-                                <input type="text" inputMode="decimal" disabled={materialBloqueado(item.id)} aria-label={`${p("Custo Registrado")}: ${item.nome}`} value={precosEditados[item.id] ?? (item.preco_total ? item.preco_total.toString().replace(".", ",") : "")} onChange={(e) => setPrecosEditados(prev => ({ ...prev, [item.id]: e.target.value }))} placeholder={p("0,00")} onBlur={(e) => atualizarPreco(item.id, e.target.value)} className="w-20 text-right outline-none bg-transparent placeholder-zinc-400" />
+                                <input id={`preco-${projetoId}-${item.id}`} type="text" inputMode="decimal" disabled={materialBloqueado(item.id)} aria-label={`${p("Custo Registrado")}: ${item.nome}`} value={precosEditados[item.id] ?? (item.preco_total ? item.preco_total.toString().replace(".", ",") : "")} onChange={(e) => setPrecosEditados(prev => ({ ...prev, [item.id]: e.target.value }))} placeholder={p("0,00")} onBlur={(e) => atualizarPreco(item.id, e.target.value)} className="min-h-11 w-24 text-right outline-none bg-transparent placeholder-zinc-600" />
                               </div>
                             </div>
                           </>
@@ -550,4 +565,48 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
     </div>
     </MutationGuard>
   );
+}
+
+type EdicaoMaterialProps = {
+  titulo: string; nome: string; quantidade: string; disabled: boolean;
+  onNome: (value: string) => void; onQuantidade: (value: string) => void;
+  onCancel: () => void; onSave: () => void;
+};
+
+function EdicaoMaterial({ titulo, nome, quantidade, disabled, onNome, onQuantidade, onCancel, onSave }: EdicaoMaterialProps) {
+  const { p } = usePrivateLocale();
+  const id = useId();
+  const nomeInput = useRef<HTMLInputElement>(null);
+  useEffect(() => { nomeInput.current?.focus(); }, []);
+
+  return <form aria-labelledby={`${id}-titulo`} aria-busy={disabled}
+    className="space-y-3 rounded-xl border border-orange-300 bg-orange-50 p-3"
+    onSubmit={event => { event.preventDefault(); if (!disabled) onSave(); }}
+    onKeyDown={event => {
+      if (event.key === "Escape" && !disabled) {
+        event.preventDefault();
+        event.stopPropagation();
+        onCancel();
+      }
+    }}>
+    <p id={`${id}-titulo`} className="font-bold text-zinc-900">{titulo}</p>
+    <label htmlFor={`${id}-nome`} className="block text-sm font-bold text-zinc-900">{p("Nome")}</label>
+    <input ref={nomeInput} id={`${id}-nome`} aria-label={p("Nome")} value={nome}
+      disabled={disabled} onChange={event => onNome(event.target.value)}
+      className="min-h-11 w-full rounded-lg border border-zinc-500 bg-white p-3 text-zinc-900 focus-visible:outline-2 focus-visible:outline-orange-800" />
+    <label htmlFor={`${id}-quantidade`} className="block text-sm font-bold text-zinc-900">{p("Quantidade")}</label>
+    <input id={`${id}-quantidade`} aria-label={p("Quantidade")} value={quantidade}
+      disabled={disabled} onChange={event => onQuantidade(event.target.value)}
+      className="min-h-11 w-full rounded-lg border border-zinc-500 bg-white p-3 text-zinc-900 focus-visible:outline-2 focus-visible:outline-orange-800" />
+    <div className="flex flex-wrap gap-2">
+      <button type="button" aria-label={p("Cancelar edição")} disabled={disabled} onClick={onCancel}
+        className="flex min-h-11 items-center gap-2 rounded-lg bg-zinc-200 px-3 py-2 font-bold text-zinc-900 focus-visible:outline-2 focus-visible:outline-zinc-900">
+        <X size={18} aria-hidden="true" />{p("Cancelar edição")}
+      </button>
+      <button type="submit" aria-label={p("Salvar material")} disabled={disabled}
+        className="flex min-h-11 items-center gap-2 rounded-lg bg-emerald-800 px-3 py-2 font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-900">
+        <Save size={18} aria-hidden="true" />{p("Salvar material")}
+      </button>
+    </div>
+  </form>;
 }

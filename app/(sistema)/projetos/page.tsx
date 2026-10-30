@@ -256,18 +256,18 @@ export default function Projetos() {
                     <div className="md:col-span-2 flex items-center justify-between md:justify-end gap-2 mt-2 md:mt-0 pt-3 md:pt-0 border-t border-zinc-100 md:border-0">
                       
                       {/* Botões visíveis no mobile e desktop */}
-                      <div className="flex items-center gap-2 w-full md:w-auto">
+                      <div className="flex flex-wrap items-center justify-end gap-2 w-full">
                         <button 
                           disabled={carregando || temFormularioAberto} onClick={() => iniciarEdicao(projeto)}
-                          className="p-2 text-zinc-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-                          title={p("Editar")}
+                          className="min-h-11 min-w-11 p-2 text-zinc-700 hover:text-blue-800 rounded-lg hover:bg-blue-50 transition-colors focus-visible:outline-2 focus-visible:outline-blue-800"
+                          type="button" aria-label={p("Editar {name}", { name: projeto.titulo })} title={p("Editar")}
                         >
                           <Edit2 size={18} />
                         </button>
                         <button 
                           disabled={carregando || temFormularioAberto} onClick={() => setProjetoConfirmarExclusao(projeto.id)}
-                          className="p-2 text-zinc-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
-                          title={p("Excluir")}
+                          className="min-h-11 min-w-11 p-2 text-zinc-700 hover:text-red-800 rounded-lg hover:bg-red-50 transition-colors focus-visible:outline-2 focus-visible:outline-red-800"
+                          type="button" aria-label={p("Excluir {name}", { name: projeto.titulo })} title={p("Excluir")}
                         >
                           <Trash2 size={18} />
                         </button>

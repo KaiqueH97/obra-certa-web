@@ -1,4 +1,4 @@
-# Pendências confirmadas — atualização de 29/10/2026
+# Pendências confirmadas — atualização de 30/10/2026
 
 Revisão direcionada do código atual, após paginação de obras e equipe. Não é
 uma nova certificação de segurança nem uma revisão das configurações remotas.
@@ -79,5 +79,15 @@ dependentes de definição de conteúdo e regras; tarefas concluídas não equiv
 automaticamente à conclusão física da obra. Roteiro:
 [indicadores das obras](./indicadores-das-obras.md).
 
-Próxima etapa sugerida: revisar foco, contraste e acessibilidade das ações de
-edição/exclusão nas telas de obras e materiais, nas duas línguas.
+## Acessibilidade da edição de materiais
+
+O formulário agora recebe foco no nome ao abrir; cancelar ou pressionar Escape
+devolve foco ao botão Editar. Enter envia o formulário e a gravação pendente
+bloqueia cancelamento/reenvio. Nome, quantidade e custo têm labels associados.
+Botões de ação ganharam área mínima de 44 px e foco visível; os de obras
+anunciam o nome do registro. Roteiro:
+[edição acessível de materiais](./acessibilidade-edicao-materiais.md).
+
+A revisão global de contraste e leitor de tela permanece pendente. Esta etapa
+não certifica conformidade do aplicativo inteiro; o fluxo de foco na edição e
+confirmação de exclusão de projetos ainda merece revisão própria.

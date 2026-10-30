@@ -12,7 +12,7 @@ import { MutationGuard } from "@/app/components/MutationGuard";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
 import { MutationError } from "@/lib/confirmed-mutation";
 import toast from "react-hot-toast";
-import { Building2, Calendar, MapPin, ArrowRight, Edit2, Trash2, Plus, X, Save } from "lucide-react";
+import { Building2, Calendar, ArrowRight, Edit2, Trash2, Plus, X, Save } from "lucide-react";
 
 export default function Projetos() {
   const { locale, p } = usePrivateLocale();
@@ -171,9 +171,8 @@ export default function Projetos() {
         
         {/* CABEÇALHO DA TABELA (Exclusivo Desktop) */}
         <div className="hidden md:grid grid-cols-12 gap-4 p-4 bg-zinc-50 border-b border-zinc-100 text-xs uppercase font-semibold text-zinc-500">
-          <div className="col-span-5">{p("Detalhes da Obra")}</div>
-          <div className="col-span-3">{p("Progresso Inicial")}</div>
-          <div className="col-span-2">{p("Criação")}</div>
+          <div className="col-span-7">{p("Detalhes da Obra")}</div>
+          <div className="col-span-3">{p("Criação")}</div>
           <div className="col-span-2 text-right">{p("Ações")}</div>
         </div>
 
@@ -237,40 +236,23 @@ export default function Projetos() {
                   /* --- MODO VISUALIZAÇÃO NORMAL --- */
                   <>
                     {/* Coluna 1: Informações Principais */}
-                    <div className="md:col-span-5 flex items-start gap-3">
+                    <div className="md:col-span-7 flex items-start gap-3">
                       <div className="mt-1 p-2 bg-orange-100 text-orange-600 rounded-lg shrink-0">
                         <Building2 size={20} />
                       </div>
                       <div>
                         <h3 className="font-bold text-zinc-900 text-lg md:text-base wrap-break-word line-clamp-2">{projeto.titulo}</h3>
-                        <div className="flex items-center gap-1 text-sm text-zinc-500 mt-1">
-                          <MapPin size={14} />
-                          <span>{p("Local a definir")}</span> {/* Placeholder até criar no BD */}
-                        </div>
                       </div>
                     </div>
 
-                    {/* Coluna 2: Progresso (Placeholder visual) */}
-                    <div className="md:col-span-3 flex flex-col justify-center">
-                      <div className="flex items-center justify-between md:hidden mb-1">
-                        <span className="text-sm font-medium text-zinc-700">{p("Progresso Geral")}</span>
-                        <span className="text-sm font-bold text-zinc-900">0%</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 bg-zinc-200 rounded-full h-2.5 md:h-2">
-                          <div className="h-2.5 md:h-2 rounded-full bg-zinc-300" style={{ width: '0%' }}></div>
-                        </div>
-                        <span className="hidden md:inline text-sm font-bold text-zinc-500 w-9">0%</span>
-                      </div>
-                    </div>
-
-                    {/* Coluna 3: Data de Criação real do BD */}
-                    <div className="hidden md:flex md:col-span-2 items-center gap-2 text-sm text-zinc-600">
+                    {/* Coluna 2: Data de Criação real do BD */}
+                    <div className="flex md:col-span-3 items-center gap-2 text-sm text-zinc-600">
                       <Calendar size={16} className="text-zinc-400" />
-                      <span>{formatarData(projeto.criado_em)}</span>
+                      <span className="md:hidden">{p("Criação")}:</span>
+                      <time dateTime={projeto.criado_em}>{formatarData(projeto.criado_em)}</time>
                     </div>
 
-                    {/* Coluna 4: Ações (Abrir, Editar, Excluir) */}
+                    {/* Coluna 3: Ações (Abrir, Editar, Excluir) */}
                     <div className="md:col-span-2 flex items-center justify-between md:justify-end gap-2 mt-2 md:mt-0 pt-3 md:pt-0 border-t border-zinc-100 md:border-0">
                       
                       {/* Botões visíveis no mobile e desktop */}

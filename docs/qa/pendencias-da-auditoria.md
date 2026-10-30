@@ -5,7 +5,6 @@ uma nova certificação de segurança nem uma revisão das configurações remot
 
 | Prioridade | Evidência | Próxima correção |
 | --- | --- | --- |
-| Média | `app/(sistema)/home/page.tsx`: botão “Gerar Relatório” sem ação e status fixo “Em andamento”. `app/(sistema)/projetos/page.tsx`: progresso fixo em 0%. | Implementar relatório e indicadores derivados de dados reais, ou retirar os elementos até terem comportamento funcional. |
 | Validação manual | Tradução das telas, avisos e PWA implementada. | Executar o [roteiro de idiomas](./idiomas.md) no celular, com leitor de tela e no PWA instalado. |
 | Média | Detalhes de obra: campos e botões receberam nomes acessíveis na tradução; ainda há estilos de texto claro que exigem verificação visual. | Revisar associação de labels, nomes de botões, foco e contraste medido em estados normal/desabilitado, nas duas línguas. |
 | Baixa | Tipos escritos manualmente divergem do schema em campos opcionais, por exemplo `preco_total`/`concluida` nos detalhes. | Gerar tipos do schema real e validar os dados de entrada nas fronteiras, sem tratar resposta inválida como sucesso. |
@@ -66,5 +65,19 @@ após solicitar. O usuário abre o WhatsApp pelo link preparado, ou copia o text
 completo. Não há mais leitura integral de materiais na abertura da obra.
 Aplicação da migration e QA: [paginação de materiais](./paginacao-de-materiais.md).
 
-A próxima correção funcional sugerida é retirar ou implementar os indicadores
-fixos e o botão sem ação no dashboard, conforme a tabela de pendências.
+Os indicadores fixos e o botão sem ação foram tratados na etapa abaixo.
+
+## Indicadores das obras
+
+Removidos status “Em andamento”, percentual “0%” e localização “Local a definir”,
+pois não vinham de dados cadastrados. A data real de criação aparece nas duas
+telas, inclusive no mobile. Os totais reais do dashboard permanecem.
+
+O botão “Gerar Relatório” foi retirado por não ter implementação. Um relatório
+geral e um acompanhamento de progresso físico continuam funcionalidades futuras,
+dependentes de definição de conteúdo e regras; tarefas concluídas não equivalem
+automaticamente à conclusão física da obra. Roteiro:
+[indicadores das obras](./indicadores-das-obras.md).
+
+Próxima etapa sugerida: revisar foco, contraste e acessibilidade das ações de
+edição/exclusão nas telas de obras e materiais, nas duas línguas.

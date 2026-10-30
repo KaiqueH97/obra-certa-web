@@ -10,7 +10,7 @@ import { useDataLoad } from "@/app/hooks/useDataLoad";
 import { LoadFeedback } from "@/app/components/LoadFeedback";
 import { requireData } from "@/lib/load-data";
 import { parseDashboardSummary, type DashboardSummary } from "@/lib/dashboard";
-import { Building2, AlertCircle, CheckCircle2, DollarSign, Download, Calculator, FolderKanban, ArrowRight, Users } from "lucide-react";
+import { Building2, AlertCircle, CheckCircle2, DollarSign, Calculator, FolderKanban, ArrowRight, Users } from "lucide-react";
 
 export default function HomeDashboard() {
   const { locale, p } = usePrivateLocale();
@@ -37,11 +37,6 @@ export default function HomeDashboard() {
           <h1 className="text-2xl md:text-3xl font-extrabold text-zinc-900 tracking-tight">{p("Resumo da Obra")}</h1>
           <p className="text-sm md:text-base text-zinc-500">{p("Resumo dos seus canteiros no momento da consulta.")}</p>
         </div>
-        
-        <button className="hidden md:flex items-center gap-2 bg-zinc-900 text-white px-5 py-2.5 rounded-xl hover:bg-zinc-800 transition-colors shadow-sm font-medium">
-          <Download size={18} />
-          {p("Gerar Relatório")}
-        </button>
       </div>
 
       {/* ACESSO RÁPIDO (Mobile) */}
@@ -109,9 +104,9 @@ export default function HomeDashboard() {
             <table className="w-full text-left text-sm text-zinc-600">
               <thead className="hidden md:table-header-group bg-zinc-50 text-xs uppercase font-semibold text-zinc-500">
                 <tr>
-                  <th className="px-6 py-4">{p("Nome da Obra")}</th>
-                  <th className="px-6 py-4">{p("Status")}</th>
-                  <th className="px-6 py-4 text-right">{p("Ação")}</th>
+                  <th scope="col" className="px-6 py-4">{p("Nome da Obra")}</th>
+                  <th scope="col" className="px-6 py-4">{p("Criação")}</th>
+                  <th scope="col" className="px-6 py-4 text-right">{p("Ação")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 flex flex-col md:table-row-group">
@@ -124,9 +119,8 @@ export default function HomeDashboard() {
                     <tr key={projeto.id} className="flex flex-col md:table-row p-4 md:p-0 hover:bg-zinc-50 transition-colors">
                       <td className="px-2 md:px-6 py-2 md:py-4 font-medium text-zinc-900 truncate max-wxs">{projeto.titulo}</td>
                       <td className="px-2 md:px-6 py-1 md:py-4">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
-                          {p("Em andamento")}
-                        </span>
+                        <span className="md:hidden">{p("Criação")}: </span>
+                        <time dateTime={projeto.criado_em}>{new Date(projeto.criado_em).toLocaleDateString(locale === "en" ? "en-US" : "pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })}</time>
                       </td>
                       <td className="px-2 md:px-6 py-2 md:py-4 md:text-right">
                         <Link href={`/projetos/${projeto.id}`} className="text-orange-600 hover:text-orange-800 font-medium text-xs md:text-sm flex items-center gap-1 md:justify-end">

@@ -1,37 +1,32 @@
 "use client";
 
 import { usePrivateLocale } from "@/app/hooks/usePrivateLocale";
-import { formatBRL, materialQuote } from "@/lib/private-i18n";
+import { formatBRL } from "@/lib/private-i18n";
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
 import { useDataLoad } from "@/app/hooks/useDataLoad";
 import { LoadFeedback } from "@/app/components/LoadFeedback";
+import { useMaterialsPage } from "@/app/hooks/useMaterialsPage";
+import { MATERIALS_PAGE_SIZE, type Material } from "@/lib/materials-page";
+import { MaterialQuote } from "@/app/components/MaterialQuote";
 import { useCashPage } from "@/app/hooks/useCashPage";
 import { CASH_PAGE_SIZE, type CashTransaction } from "@/lib/cash-page";
 import { ProjectTasks } from "@/app/components/ProjectTasks";
 import { WorkerPicker, type WorkerOption } from "@/app/components/WorkerPicker";
 import { DeleteConfirmation } from "@/app/components/DeleteConfirmation";
-import { loadAllRows, requireData, LoadError } from "@/lib/load-data";
+import { requireData, LoadError } from "@/lib/load-data";
 import Link from "next/link";
 import { MutationGuard } from "@/app/components/MutationGuard";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
 import { parseMoney } from "@/lib/money";
 import toast from "react-hot-toast";
 import { 
-  ArrowLeft, ShoppingCart, CheckSquare, MessageCircle, 
+  ArrowLeft, ShoppingCart, CheckSquare,
   Edit2, Trash2, Plus, Calculator, X, Save,
   TrendingUp, TrendingDown, Wallet, Users
 } from "lucide-react";
-
-interface Material {
-  id: number;
-  nome: string;
-  quantidade: string;
-  projeto_id: number;
-  preco_total: number; 
-}
 
 export default function ProjetoPage() {
   const { id } = useParams<{ id: string }>();
@@ -44,7 +39,22 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   const { run, isPending, requiresReload } = useConfirmedMutation();
   const [precosEditados, setPrecosEditados] = useState<Record<number, string>>({});
   const [tituloObra, setTituloObra] = useState("Carregando...");
-  const [materiais, setMateriais] = useState<Material[]>([]);
+  const listaMateriais = useMaterialsPage(projetoId);
+  const materiais = listaMateriais.data?.materiais ?? [];
+  const materiaisPagina = listaMateriais.data?.pagina ?? 0;
+  const materiaisTotal = listaMateriais.data?.total ?? 0;
+  const materiaisHeading = useRef<HTMLHeadingElement>(null);
+  const focoMateriais = useRef(false);
+  useEffect(() => {
+    if (listaMateriais.ready && focoMateriais.current) {
+      materiaisHeading.current?.focus();
+      focoMateriais.current = false;
+    }
+  }, [listaMateriais.ready]);
+  const atualizarMateriais = (pagina: number) => {
+    focoMateriais.current = true;
+    listaMateriais.refresh(pagina);
+  };
   const [materialExcluindo, setMaterialExcluindo] = useState<number | null>(null);
   const exclusaoTrigger = useRef<HTMLButtonElement | null>(null);
   
@@ -84,11 +94,13 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   const caixaOcupado = salvandoCaixa || transacoes.some(t => isPending(`transacao-${t.id}`));
   const bloquearCaixa = !caixa.ready || caixaOcupado || transacaoExcluindo !== null || requiresReload;
 
-  // Materiais ainda são carregados integralmente para cotação.
-  const custoMateriais = materiais.reduce((acumulador, item) => {
-    const valor = typeof item.preco_total === 'string' ? parseFloat(item.preco_total) : item.preco_total;
-    return acumulador + (valor || 0);
-  }, 0);
+  const materiaisOcupados = materiais.some(item => isPending(`material-${item.id}`));
+  const bloquearMateriais = !listaMateriais.ready || materiaisOcupados || requiresReload;
+  const bloquearNavegacaoMateriais = bloquearMateriais || materialEditando !== null || materialExcluindo !== null || Object.keys(precosEditados).length > 0;
+  const custoMateriais = listaMateriais.data?.custo ?? 0;
+  const materialBloqueado = (id: number) => bloquearMateriais ||
+    (materialEditando !== null && materialEditando !== id) ||
+    (materialExcluindo !== null && materialExcluindo !== id);
 
   const totalRecebido = caixa.data?.entradas ?? 0;
   const totalMaoDeObra = caixa.data?.pagamentos ?? 0;
@@ -99,18 +111,12 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
     // Valida a obra antes de buscar seus dados. As consultas restantes são independentes.
     const projeto = requireData(await supabase.from("projetos").select("titulo")
       .eq("id", projetoId).abortSignal(signal).maybeSingle<{ titulo: string }>(), "Obra não encontrada ou sem acesso.");
-    const [materiais, auth] = await Promise.all([
-      loadAllRows<Material>((from, to) => supabase.from("materiais_projeto")
-        .select("id, nome, quantidade, projeto_id, preco_total", { count: "exact" }).eq("projeto_id", projetoId)
-        .order("id", { ascending: false }).range(from, to).abortSignal(signal), signal),
-      supabase.auth.getUser(),
-    ]);
+    const auth = await supabase.auth.getUser();
     if (auth.error || !auth.data.user) throw new LoadError("Não foi possível validar sua sessão. Tente novamente ou entre novamente.");
-    return { projeto, materiais, user: auth.data.user };
+    return { projeto, user: auth.data.user };
   }, [projetoId]);
   const aplicarDadosDaObra = useCallback((data: Awaited<ReturnType<typeof carregarDadosDaObra>>) => {
     setTituloObra(data.projeto.titulo);
-    setMateriais(data.materiais);
     setNomeProfissional(data.user.user_metadata.nome || "");
     setTelefoneContato(data.user.user_metadata.telefone || "");
   }, []);
@@ -125,7 +131,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   };
 
   const atualizarPreco = async (id: number, valorDigitado: string) => {
-    if (isPending(`material-${id}`)) return;
+    if (bloquearMateriais) return;
     const preco = parseMoney(valorDigitado, { allowEmpty: true });
     if (!preco.ok) {
       toast.error(notice(`Preço do material: ${preco.error}`));
@@ -143,7 +149,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
         request: () => supabase.from("materiais_projeto")
           .update({ preco_total: precoFinal }).eq("id", id).eq("projeto_id", projetoId)
           .select("id, nome, quantidade, projeto_id, preco_total").single<Material>(),
-        onConfirmed: (material) => setMateriais(prev => prev.map(item => item.id === id ? material : item)),
+        onConfirmed: () => atualizarMateriais(materiaisPagina),
         // Também restaura o preço após erro, mas apenas enquanto esta tela estiver ativa.
         onSettled: () => limparPrecoEditado(id),
       });
@@ -160,6 +166,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   };
 
   const salvarEdicaoMaterial = async (id: number) => {
+    if (bloquearMateriais) return;
     await run({
       key: `material-${id}`,
       loading: "Salvando alterações...",
@@ -167,8 +174,8 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
       request: () => supabase.from("materiais_projeto")
         .update({ nome: nomeEditado, quantidade: qtdEditada }).eq("id", id).eq("projeto_id", projetoId)
         .select("id, nome, quantidade, projeto_id, preco_total").single<Material>(),
-      onConfirmed: (material) => {
-        setMateriais(prev => prev.map(item => item.id === id ? material : item));
+      onConfirmed: () => {
+        atualizarMateriais(materiaisPagina);
         setMaterialEditando(prev => prev === id ? null : prev);
       },
     });
@@ -180,24 +187,18 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   };
 
   const executarExclusaoMaterial = async (id: number) => {
+    if (bloquearMateriais || materialExcluindo !== id) return;
     await run({
       key: `material-${id}`,
       loading: "Removendo material...",
       success: "Material excluído!",
       request: () => supabase.from("materiais_projeto").delete()
         .eq("id", id).eq("projeto_id", projetoId).select("id").single<{ id: number }>(),
-      onConfirmed: (material) => {
-        setMateriais(prev => prev.filter(item => item.id !== material.id));
-        setMaterialExcluindo(prev => prev === material.id ? null : prev);
+      onConfirmed: () => {
+        atualizarMateriais(materiaisPagina);
+        setMaterialExcluindo(null);
       },
     });
-  };
-
-  const solicitarOrcamentoWhatsApp = () => {
-    const textoMensagem = materialQuote(locale, {
-      worker: nomeProfissional, project: tituloObra, phone: telefoneContato, materials: materiais,
-    });
-    window.open(`https://wa.me/?text=${encodeURIComponent(textoMensagem)}`, '_blank', 'noopener,noreferrer');
   };
 
   /* ================== LÓGICA FINANCEIRA ================== */
@@ -290,16 +291,10 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
           </div>
         </div>
 
-        {/* Botão do WhatsApp */}
-        {materiais.length > 0 && !carregando && (
-          <button 
-            onClick={solicitarOrcamentoWhatsApp}
-            className="hidden lg:flex items-center justify-center gap-2 bg-[#25D366] text-white px-5 py-3 rounded-xl hover:bg-[#128C7E] transition-colors shadow-sm font-bold"
-          >
-            <MessageCircle size={20} />
-            {p("Enviar Relatório (WhatsApp)")}
-          </button>
-        )}
+        {materiaisTotal > 0 && <MaterialQuote key={listaMateriais.data?.revision}
+          projectId={projetoId} worker={nomeProfissional} project={tituloObra} phone={telefoneContato}
+          disabled={bloquearNavegacaoMateriais} />}
+
       </div>
 
       {/* MINI-DASHBOARD FINANCEIRO */}
@@ -311,15 +306,15 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
           </div>
           <div className="bg-white p-4 rounded-xl border border-zinc-200 shadow-sm">
             <p className="text-xs font-bold text-zinc-600 uppercase flex items-center gap-1"><ShoppingCart size={14} className="text-orange-600"/> {p("Materiais")}</p>
-            <p className="text-lg md:text-2xl font-black text-zinc-900 mt-1">{formatBRL(locale, custoMateriais)}</p>
+            <p className="text-lg md:text-2xl font-black text-zinc-900 mt-1">{listaMateriais.ready ? formatBRL(locale, custoMateriais) : p("Indisponível")}</p>
           </div>
           <div className="bg-white p-4 rounded-xl border border-zinc-200 shadow-sm">
             <p className="text-xs font-bold text-zinc-600 uppercase flex items-center gap-1"><Users size={14} className="text-blue-600"/> {p("Equipe")}</p>
             <p className="text-lg md:text-2xl font-black text-zinc-900 mt-1">{caixa.ready ? formatBRL(locale, totalMaoDeObra) : p("Indisponível")}</p>
           </div>
-          <div className={`p-4 rounded-xl border shadow-sm ${!caixa.ready ? 'bg-zinc-100 border-zinc-300 text-zinc-900' : lucroAtual >= 0 ? 'bg-emerald-900 border-emerald-950 text-white' : 'bg-red-900 border-red-950 text-white'}`}>
+          <div className={`p-4 rounded-xl border shadow-sm ${!caixa.ready || !listaMateriais.ready ? 'bg-zinc-100 border-zinc-300 text-zinc-900' : lucroAtual >= 0 ? 'bg-emerald-900 border-emerald-950 text-white' : 'bg-red-900 border-red-950 text-white'}`}>
             <p className="text-xs font-bold opacity-90 uppercase flex items-center gap-1"><Wallet size={14}/> {p("Lucro Atual")}</p>
-            <p className="text-lg md:text-2xl font-black mt-1">{caixa.ready ? formatBRL(locale, lucroAtual) : p("Indisponível")}</p>
+            <p className="text-lg md:text-2xl font-black mt-1">{caixa.ready && listaMateriais.ready ? formatBRL(locale, lucroAtual) : p("Indisponível")}</p>
           </div>
         </div>
       )}
@@ -349,11 +344,11 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
           <div className={`${abaAtiva === "materiais" ? "block" : "hidden"} lg:block space-y-6`}>
             <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden flex flex-col max-h-175">
               <div className="p-4 border-b border-zinc-200 bg-zinc-50 flex justify-between items-center">
-                <h2 className="font-bold text-zinc-900">{p("Lista de Materiais")}</h2>
+                <h2 ref={materiaisHeading} tabIndex={-1} className="font-bold text-zinc-900">{p("Lista de Materiais")}</h2>
               </div>
               
               <div className="overflow-y-auto flex-1">
-                {materiais.length === 0 ? (
+                {!listaMateriais.ready ? <LoadFeedback error={listaMateriais.error} retry={listaMateriais.retry} /> : materiais.length === 0 ? (
                   <div className="p-10 text-center flex flex-col items-center">
                     <ShoppingCart size={40} className="text-zinc-400 mb-3" />
                     <p className="text-zinc-600 font-medium">{p("Nenhum material adicionado.")}</p>
@@ -364,11 +359,11 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                       <li key={item.id} className="p-4 flex flex-col gap-3 hover:bg-zinc-50 transition-colors">
                         {materialEditando === item.id ? (
                           <div className="flex flex-col sm:flex-row gap-3 bg-orange-50 p-3 rounded-xl border border-orange-300 animate-in fade-in">
-                            <input className="flex-1 p-3 border border-orange-300 rounded-lg text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 bg-white" disabled={isPending(`material-${item.id}`)} aria-label={p("Nome")} value={nomeEditado} onChange={(e) => setNomeEditado(e.target.value)} placeholder={p("Nome")} />
-                            <input className="w-full sm:w-32 p-3 border border-orange-300 rounded-lg text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 bg-white" disabled={isPending(`material-${item.id}`)} aria-label={p("Quantidade")} value={qtdEditada} onChange={(e) => setQtdEditada(e.target.value)} placeholder={p("Qtd")} />
+                            <input className="flex-1 p-3 border border-orange-300 rounded-lg text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 bg-white" disabled={materialBloqueado(item.id)} aria-label={p("Nome")} value={nomeEditado} onChange={(e) => setNomeEditado(e.target.value)} placeholder={p("Nome")} />
+                            <input className="w-full sm:w-32 p-3 border border-orange-300 rounded-lg text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 bg-white" disabled={materialBloqueado(item.id)} aria-label={p("Quantidade")} value={qtdEditada} onChange={(e) => setQtdEditada(e.target.value)} placeholder={p("Qtd")} />
                             <div className="flex gap-2 w-full sm:w-auto">
-                              <button aria-label={p("Cancelar edição")} disabled={isPending(`material-${item.id}`)} onClick={() => setMaterialEditando(null)} className="flex-1 bg-zinc-200 text-zinc-800 p-3 rounded-lg font-bold hover:bg-zinc-300 flex items-center justify-center"><X size={18}/></button>
-                              <button aria-label={p("Salvar material")} disabled={isPending(`material-${item.id}`)} onClick={() => salvarEdicaoMaterial(item.id)} className="flex-1 bg-emerald-600 text-white p-3 rounded-lg font-bold hover:bg-emerald-700 flex items-center justify-center"><Save size={18}/></button>
+                              <button aria-label={p("Cancelar edição")} disabled={materialBloqueado(item.id)} onClick={() => setMaterialEditando(null)} className="flex-1 bg-zinc-200 text-zinc-800 p-3 rounded-lg font-bold hover:bg-zinc-300 flex items-center justify-center"><X size={18}/></button>
+                              <button aria-label={p("Salvar material")} disabled={materialBloqueado(item.id)} onClick={() => salvarEdicaoMaterial(item.id)} className="flex-1 bg-emerald-600 text-white p-3 rounded-lg font-bold hover:bg-emerald-700 flex items-center justify-center"><Save size={18}/></button>
                             </div>
                           </div>
                         ) : (
@@ -379,8 +374,8 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                                 <span className="inline-block bg-orange-100 text-orange-800 py-1 px-3 rounded-full font-bold text-xs mt-1">{item.quantidade}</span>
                               </div>
                               <div className="flex gap-1">
-                                <button aria-label={p("Editar {name}", { name: item.nome })} disabled={isPending(`material-${item.id}`)} onClick={() => iniciarEdicaoMaterial(item)} className="p-2 text-zinc-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"><Edit2 size={18} /></button>
-                                <button type="button" aria-label={p("Excluir {name}", { name: item.nome })} aria-expanded={materialExcluindo === item.id} disabled={isPending(`material-${item.id}`)} onClick={event => {
+                                <button aria-label={p("Editar {name}", { name: item.nome })} disabled={materialBloqueado(item.id)} onClick={() => iniciarEdicaoMaterial(item)} className="p-2 text-zinc-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"><Edit2 size={18} /></button>
+                                <button type="button" aria-label={p("Excluir {name}", { name: item.nome })} aria-expanded={materialExcluindo === item.id} disabled={materialBloqueado(item.id)} onClick={event => {
                                   exclusaoTrigger.current = event.currentTarget;
                                   setMaterialEditando(null);
                                   setMaterialExcluindo(item.id);
@@ -391,7 +386,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                               <label className="text-xs font-bold text-zinc-600 uppercase tracking-wide">{p("Custo Registrado")}</label>
                               <div className="flex items-center text-emerald-800 font-bold bg-white px-3 py-1.5 rounded-lg border border-zinc-300 shadow-sm focus-within:ring-2 focus-within:ring-emerald-600 transition-all">
                                 <span className="text-zinc-500 mr-1 text-sm">R$</span>
-                                <input type="text" inputMode="decimal" disabled={isPending(`material-${item.id}`)} aria-label={`${p("Custo Registrado")}: ${item.nome}`} value={precosEditados[item.id] ?? (item.preco_total ? item.preco_total.toString().replace(".", ",") : "")} onChange={(e) => setPrecosEditados(prev => ({ ...prev, [item.id]: e.target.value }))} placeholder={p("0,00")} onBlur={(e) => atualizarPreco(item.id, e.target.value)} className="w-20 text-right outline-none bg-transparent placeholder-zinc-400" />
+                                <input type="text" inputMode="decimal" disabled={materialBloqueado(item.id)} aria-label={`${p("Custo Registrado")}: ${item.nome}`} value={precosEditados[item.id] ?? (item.preco_total ? item.preco_total.toString().replace(".", ",") : "")} onChange={(e) => setPrecosEditados(prev => ({ ...prev, [item.id]: e.target.value }))} placeholder={p("0,00")} onBlur={(e) => atualizarPreco(item.id, e.target.value)} className="w-20 text-right outline-none bg-transparent placeholder-zinc-400" />
                               </div>
                             </div>
                           </>
@@ -410,6 +405,20 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                 )}
               </div>
               
+              <p role="status" className="px-4 text-sm text-zinc-700">
+                {listaMateriais.ready && p("{from}–{to} de {total} materiais", {
+                  from: materiaisTotal ? materiaisPagina * MATERIALS_PAGE_SIZE + 1 : 0,
+                  to: materiaisPagina * MATERIALS_PAGE_SIZE + materiais.length, total: materiaisTotal,
+                })}
+              </p>
+              <nav aria-label={p("Paginação dos materiais")} className="flex justify-between gap-2 p-4">
+                <button type="button" disabled={bloquearNavegacaoMateriais || materiaisPagina === 0}
+                  onClick={() => atualizarMateriais(materiaisPagina - 1)}
+                  className="min-h-11 rounded-lg border border-zinc-400 px-3 py-2 font-bold text-zinc-900 disabled:opacity-50">{p("Anterior")}</button>
+                <button type="button" disabled={bloquearNavegacaoMateriais || (materiaisPagina + 1) * MATERIALS_PAGE_SIZE >= materiaisTotal}
+                  onClick={() => atualizarMateriais(materiaisPagina + 1)}
+                  className="min-h-11 rounded-lg border border-zinc-400 px-3 py-2 font-bold text-zinc-900 disabled:opacity-50">{p("Próxima")}</button>
+              </nav>
               <div className="p-4 bg-zinc-50 border-t border-zinc-200">
                 <Link href="/calcular" className="flex items-center justify-center gap-2 w-full bg-orange-100 text-orange-800 font-bold p-4 rounded-xl hover:bg-orange-200 transition-colors">
                   <Calculator size={20} /> {p("Nova Medição")}
@@ -417,12 +426,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
               </div>
             </div>
 
-            {/* Botão do WhatsApp no Mobile */}
-            {materiais.length > 0 && (
-              <button onClick={solicitarOrcamentoWhatsApp} className="lg:hidden w-full flex items-center justify-center gap-2 bg-[#25D366] text-white font-bold p-4 rounded-xl hover:bg-[#128C7E] transition shadow-sm">
-                <MessageCircle size={20} /> {p("Pedir Cotação no WhatsApp")}
-              </button>
-            )}
+
           </div>
 
           {/* COLUNA 2: FINANCEIRO E CAIXA */}

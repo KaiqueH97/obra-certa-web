@@ -28,7 +28,9 @@
     "test:worker-picker": "node --test tests/worker-picker.test.mjs",
     "test:tasks": "node --test tests/project-tasks.test.mjs",
     "test:cash": "node --test tests/cash-page.test.mjs",
-    "test:cash-db": "python3 tests/database/test_cash.py"
+    "test:cash-db": "python3 tests/database/test_cash.py",
+    "test:materials": "node --test tests/materials-page.test.mjs",
+    "test:materials-db": "python3 tests/database/test_materials.py"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",

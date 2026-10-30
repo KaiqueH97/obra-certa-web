@@ -1,11 +1,10 @@
-# Pendências confirmadas — atualização de 28/10/2026
+# Pendências confirmadas — atualização de 29/10/2026
 
 Revisão direcionada do código atual, após paginação de obras e equipe. Não é
 uma nova certificação de segurança nem uma revisão das configurações remotas.
 
 | Prioridade | Evidência | Próxima correção |
 | --- | --- | --- |
-| Média | `app/(sistema)/projetos/[id]/page.tsx`: ainda busca todos os materiais antes de liberar a tela; caixa já lê 20 lançamentos com totais globais no banco. | Paginar materiais e agregar seus custos no banco; preservar a lista completa de cotação. |
 | Média | `app/(sistema)/home/page.tsx`: botão “Gerar Relatório” sem ação e status fixo “Em andamento”. `app/(sistema)/projetos/page.tsx`: progresso fixo em 0%. | Implementar relatório e indicadores derivados de dados reais, ou retirar os elementos até terem comportamento funcional. |
 | Validação manual | Tradução das telas, avisos e PWA implementada. | Executar o [roteiro de idiomas](./idiomas.md) no celular, com leitor de tela e no PWA instalado. |
 | Média | Detalhes de obra: campos e botões receberam nomes acessíveis na tradução; ainda há estilos de texto claro que exigem verificação visual. | Revisar associação de labels, nomes de botões, foco e contraste medido em estados normal/desabilitado, nas duas línguas. |
@@ -44,8 +43,7 @@ conclusão confirmadas atualizam a página e o total; falha nessa releitura perm
 tentar novamente sem repetir a gravação. Roteiro:
 [paginação de tarefas](./paginacao-de-tarefas.md).
 
-Ainda falta paginar materiais, agregando seus custos no banco e preservando a
-lista completa no pedido de cotação pelo WhatsApp.
+A paginação de materiais foi concluída na etapa abaixo.
 
 ## Paginação do caixa
 
@@ -54,5 +52,19 @@ pagamentos da obra em uma única consulta sob RLS. Falhas da RPC não viram sald
 zero; confirmação de gravação é separada da releitura. Aplicar a migration antes
 do frontend conforme o [roteiro do caixa](./paginacao-do-caixa.md).
 
-Materiais continuam completos no cliente: seu custo e a cotação não são
-calculados a partir de uma página parcial. Esse é o próximo ponto de performance.
+Na etapa seguinte, materiais também passaram a ter paginação e custo agregado;
+a cotação completa passou a ser carregada sob demanda.
+
+## Paginação de materiais e cotação completa
+
+Materiais agora consultam páginas de 20 itens com custo integral agregado no
+banco. Alterar preço, nome, quantidade ou excluir relê a página e o total após
+confirmação. Falhas não exibem custo ou lucro zerado.
+
+A cotação consulta todos os nomes e quantidades em uma RPC separada, somente
+após solicitar. O usuário abre o WhatsApp pelo link preparado, ou copia o texto
+completo. Não há mais leitura integral de materiais na abertura da obra.
+Aplicação da migration e QA: [paginação de materiais](./paginacao-de-materiais.md).
+
+A próxima correção funcional sugerida é retirar ou implementar os indicadores
+fixos e o botão sem ação no dashboard, conforme a tabela de pendências.

@@ -2,6 +2,14 @@ import type { Locale } from "./i18n";
 
 // Chaves são os textos originais; nunca aplicar este catálogo a dados cadastrados.
 const english = {
+  "Preparar cotação completa": "Prepare full quote",
+  "Carregando cotação...": "Loading quote...",
+  "Abrir cotação no WhatsApp": "Open quote in WhatsApp",
+  "Texto completo da cotação": "Full quote text",
+  "{total} materiais na cotação.": "{total} materials in the quote.",
+  "Paginação dos materiais": "Materials pagination",
+  "{from}–{to} de {total} materiais": "{from}–{to} of {total} materials",
+  "Não foi possível confirmar os materiais da obra. Tente novamente.": "We could not verify the project materials. Please try again.",
   "Indisponível": "Unavailable",
   "Sem descrição": "No description",
   "Não foi possível confirmar o caixa da obra. Tente novamente.": "We could not verify the project cash flow. Please try again.",

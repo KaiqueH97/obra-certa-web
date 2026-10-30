@@ -16,6 +16,7 @@ const loads = loadTs(new URL('../lib/load-data.ts', import.meta.url))
 const pages = loadTs(new URL('../lib/pagination.ts', import.meta.url), { './load-data': loads })
 const loadHooks = loadTs(new URL('../app/hooks/useDataLoad.ts', import.meta.url), { ...base, '@/lib/load-data': loads })
 const cashParser = loadTs(new URL('../lib/cash-page.ts', import.meta.url), { './load-data': loads })
+const materialsParser = loadTs(new URL("../lib/materials-page.ts", import.meta.url), { "./load-data": loads })
 const money = loadTs(new URL('../lib/money.ts', import.meta.url))
 const confirmation = loadTs(new URL('../app/components/DeleteConfirmation.tsx', import.meta.url), base)
 const feedback = loadTs(new URL('../app/components/LoadFeedback.tsx', import.meta.url), base)
@@ -53,6 +54,9 @@ async function mount(t, config, timeoutMs = 20000) {
   const notices = []
   const requests = []
   const cashReads = []
+  const materialReads = [], quoteReads = []
+  let materialOverride, quoteOverride
+  let materialRecords = [...(config.data.materiais ?? [])]
   let cashOverride
   let cashRecords = [...(config.data.transacoes ?? [])]
   const destinations = []
@@ -67,6 +71,21 @@ async function mount(t, config, timeoutMs = 20000) {
   })
   const supabase = {
     rpc(name, args) {
+      if (name === 'pagina_materiais' || name === 'cotacao_materiais') return { abortSignal(signal) {
+        const sorted = [...materialRecords].sort((a, b) => b.id - a.id)
+        if (name === 'cotacao_materiais') {
+          quoteReads.push({ ...args, signal })
+          if (quoteOverride) return quoteOverride(args)
+          return Promise.resolve({ error: null, data: { projeto_id: 42, total: sorted.length,
+            materiais: sorted.map(({ id, nome, quantidade }) => ({ id, nome, quantidade })) } })
+        }
+        materialReads.push({ ...args, signal })
+        if (materialOverride) return materialOverride(args)
+        const pagina = Math.min(args.p_pagina, Math.max(0, Math.ceil(sorted.length / 20) - 1))
+        return Promise.resolve({ error: null, data: { projeto_id: 42, total: sorted.length, pagina,
+          custo: sorted.reduce((sum, m) => sum + (m.preco_total ?? 0), 0),
+          materiais: sorted.slice(pagina * 20, pagina * 20 + 20) } })
+      } }
       assert.equal(name, 'pagina_caixa')
       return { abortSignal(signal) {
         cashReads.push({ ...args, signal })
@@ -104,6 +123,10 @@ async function mount(t, config, timeoutMs = 20000) {
         async single() {
           requests.push(query)
           const result = await response
+          if (!result.error && result.data?.id && table === 'materiais_projeto') {
+            if (query.operation === 'delete') materialRecords = materialRecords.filter(m => m.id !== result.data.id)
+            if (query.operation === 'update') materialRecords = materialRecords.map(m => m.id === result.data.id ? { ...m, ...query.payload, ...result.data } : m)
+          }
           if (!result.error && result.data?.id && table === 'financeiro_obra') {
             if (query.operation === 'delete') cashRecords = cashRecords.filter(t => t.id !== result.data.id)
             if (query.operation === 'insert') {
@@ -134,12 +157,19 @@ async function mount(t, config, timeoutMs = 20000) {
     ...base, '@/lib/supabase': { supabase }, '@/lib/load-data': loads, '@/lib/cash-page': cashParser,
     './useDataLoad': loadHooks,
   })
+  const materialsHook = loadTs(new URL('../app/hooks/useMaterialsPage.ts', import.meta.url), {
+    ...base, '@/lib/supabase': { supabase }, '@/lib/load-data': loads, '@/lib/materials-page': materialsParser, './useDataLoad': loadHooks,
+  })
+  const quote = loadTs(new URL('../app/components/MaterialQuote.tsx', import.meta.url), {
+    ...base, '@/lib/supabase': { supabase }, '@/lib/load-data': loads, '@/lib/materials-page': materialsParser,
+  })
   const { default: Page } = loadTs(new URL(config.file, import.meta.url), {
     ...base, 'react-hot-toast': { default: toast }, 'lucide-react': icons,
     'next/link': { default: props => h('a', props) },
     'next/navigation': { useParams: () => ({ id: '42' }) },
     '@/lib/supabase': { supabase }, '@/lib/load-data': loads, '@/lib/money': money, '@/lib/pagination': pages,
     '@/lib/confirmed-mutation': mutation, '@/app/hooks/useConfirmedMutation': actions, '@/app/components/MutationGuard': guard,
+    '@/app/hooks/useMaterialsPage': materialsHook, '@/lib/materials-page': materialsParser, '@/app/components/MaterialQuote': quote,
     '@/app/hooks/useCashPage': cashHook, '@/lib/cash-page': cashParser,
     '@/app/components/WorkerPicker': workerPicker, '@/app/components/ProjectTasks': tasks,
     '@/app/components/DeleteConfirmation': confirmation, '@/app/components/LoadFeedback': feedback,
@@ -170,6 +200,9 @@ async function mount(t, config, timeoutMs = 20000) {
   const confirm = () => group().querySelectorAll('button')[1]
   return {
     trigger, group, cancel, confirm, requests, notices, destinations, reads, cashReads,
+    materialReads, quoteReads,
+    setMaterialRead: value => { materialOverride = value },
+    setQuoteRead: value => { quoteOverride = value },
     setCashRead: value => { cashOverride = value },
     open: () => act(() => trigger().click()),
     setResponse: value => { response = value },
@@ -329,17 +362,17 @@ test('detalhes: idioma preserva dados, aba, confirmação e texto cadastrado no 
   assert.equal(document.querySelector('h1').textContent, 'Obra A')
   const cash = [...document.querySelectorAll('h2')].find(h => h.textContent === 'Project cash flow')
   assert.ok(cash.closest('.space-y-6').classList.contains('block'))
-  const opened = []
-  window.open = (...args) => opened.push(args)
-  await clickText('Send report (WhatsApp)')
-  const text = new URL(opened[0][0]).searchParams.get('text')
+  await act(() => ui.cancel().click())
+  assert.equal(document.activeElement.getAttribute('aria-label'), 'Delete Cimento')
+  assert.equal(ui.quoteReads.length, 0)
+  await clickText('Prepare full quote')
+  const link = document.querySelector('a[href^="https://wa.me/"]')
+  const text = new URL(link.href).searchParams.get('text')
   assert.match(text, /Hello! This is Worker/)
   assert.match(text, /MATERIAL LIST/)
   assert.match(text, /\*Cimento:\* 2 sacos/)
-  assert.equal(opened[0][2], 'noopener,noreferrer')
+  assert.equal(link.rel, 'noopener noreferrer')
   assert.equal(ui.requests.length, 0)
-  await act(() => ui.cancel().click())
-  assert.equal(document.activeElement.getAttribute('aria-label'), 'Delete Cimento')
 })
 
 test('detalhes: lançamento em inglês preserva descrição e BRL ao trocar durante envio', async t => {
@@ -519,4 +552,101 @@ test('caixa paginado: criação na última página retorna ao início sem perder
   assert.match(document.body.textContent, /1–20 of 22 transactions/)
   assert.match(document.body.textContent, /230\.50/)
   assert.ok(document.querySelector('[aria-label="Delete Nova entrada"]'))
+})
+
+const materialFixtures = length => Array.from({ length }, (_, i) => ({
+  id: i + 1, nome: 'Material ' + (i + 1), quantidade: '2 sacos', projeto_id: 42, preco_total: 10,
+}))
+const materialsNav = () => document.querySelector('nav[aria-label="Paginação dos materiais"]')
+const materialCost = () => [...document.querySelectorAll('p')].find(p => p.textContent.trim() === 'Materiais').parentElement.textContent
+const clickNamed = text => act(() => [...document.querySelectorAll('button')].find(b => b.textContent.trim() === text).click())
+
+test('materiais: páginas limitadas, custo integral, cotação completa sob demanda e exclusão da última página', async t => {
+  const ui = await mount(t, { ...cases[1], label: 'Material 1', data: { ...cases[1].data, materiais: materialFixtures(21) } })
+  assert.equal(document.querySelectorAll('[aria-label^="Excluir Material"]').length, 20)
+  assert.match(materialCost(), /210,00/)
+  assert.equal(ui.quoteReads.length, 0)
+  await act(() => materialsNav().querySelectorAll('button')[1].click())
+  assert.equal(ui.materialReads.at(-1).p_pagina, 1)
+  assert.match(materialCost(), /210,00/)
+  await clickNamed('Preparar cotação completa')
+  const text = new URL(document.querySelector('a[href^="https://wa.me/"]').href).searchParams.get('text')
+  assert.match(text, /Material 21/)
+  assert.match(text, /Material 1:/)
+  assert.equal(document.querySelector('textarea').value, text)
+  assert.equal(ui.quoteReads.length, 1)
+  await ui.open()
+  assert.ok(materialsNav().querySelector('button').disabled)
+  ui.setResponse({ data: { id: 1 }, error: null })
+  await act(() => ui.confirm().click())
+  assert.match(materialCost(), /200,00/)
+  assert.equal(document.querySelectorAll('[aria-label^="Excluir Material"]').length, 20)
+  assert.ok(materialsNav().querySelector('button').disabled)
+  assert.equal(document.querySelector('a[href^="https://wa.me/"]'), null, 'cotação invalidada depois de alteração')
+})
+
+test('materiais: preço confirmado relê custo, falha não vira zero e retry não repete UPDATE', async t => {
+  const ui = await mount(t, cases[1])
+  const input = document.querySelector('[aria-label="Custo Registrado: Cimento"]')
+  assert.ok(input)
+  await act(() => {
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, '150,50')
+    input.dispatchEvent(new window.Event('input', { bubbles: true }))
+  })
+  ui.setMaterialRead(() => Promise.resolve({ error: { message: 'offline' }, data: null }))
+  ui.setResponse({ data: { ...cases[1].data.materiais[0], preco_total: 150.5 }, error: null })
+  await act(() => input.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true })))
+  assert.equal(ui.requests.length, 1)
+  assert.match(materialCost(), /Indisponível/)
+  assert.ok(document.querySelector('[aria-label="Descrição"]'), 'caixa permanece disponível')
+  ui.setMaterialRead(undefined)
+  await clickNamed('Tentar novamente')
+  assert.equal(ui.requests.length, 1)
+  assert.match(materialCost(), /250,50/)
+})
+
+test('cotação: erro não oferece link parcial; troca de idioma não repete leitura', async t => {
+  const ui = await mount(t, cases[1])
+  ui.setQuoteRead(() => Promise.resolve({ data: { projeto_id: 42, total: 2, materiais: [] }, error: null }))
+  await clickNamed('Preparar cotação completa')
+  assert.equal(document.querySelector('a[href^="https://wa.me/"]'), null)
+  assert.ok(document.querySelector('[role="alert"]'))
+  ui.setQuoteRead(undefined)
+  await clickNamed('Preparar cotação completa')
+  const reads = ui.quoteReads.length
+  await act(() => base['@/lib/locale-store'].setLocale('en'))
+  assert.equal(ui.quoteReads.length, reads)
+  assert.match(document.querySelector('textarea').value, /MATERIAL LIST/)
+  assert.match(document.querySelector('textarea').value, /Cimento/)
+})
+
+test('cotação: sair durante leitura cancela pedido e não abre WhatsApp', async t => {
+  const ui = await mount(t, cases[1])
+  let resolve
+  ui.setQuoteRead(() => new Promise(done => { resolve = done }))
+  await clickNamed('Preparar cotação completa')
+  const query = ui.quoteReads.at(-1)
+  await ui.leave()
+  assert.ok(query.signal.aborted)
+  await act(() => resolve({ data: { projeto_id: 42, total: 0, materiais: [] }, error: null }))
+  assert.equal(document.querySelector('a[href^="https://wa.me/"]'), null)
+})
+
+test('materiais: edição bloqueia paginação e outras linhas, salva e preserva página atual', async t => {
+  const ui = await mount(t, { ...cases[1], data: { ...cases[1].data, materiais: materialFixtures(22) } })
+  await act(() => materialsNav().querySelectorAll('button')[1].click())
+  await act(() => document.querySelector('[aria-label="Editar Material 2"]').click())
+  assert.ok(materialsNav().querySelector('button').disabled)
+  assert.ok(document.querySelector('[aria-label="Editar Material 1"]').disabled)
+  const input = document.querySelector('[aria-label="Nome"]')
+  await act(() => {
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, 'Material revisado')
+    input.dispatchEvent(new window.Event('input', { bubbles: true }))
+  })
+  ui.setResponse({ data: { ...materialFixtures(2)[1], nome: 'Material revisado' }, error: null })
+  await act(() => document.querySelector('[aria-label="Salvar material"]').click())
+  assert.equal(ui.materialReads.at(-1).p_pagina, 1)
+  assert.ok(document.querySelector('[aria-label="Editar Material revisado"]'))
+  assert.equal(ui.requests.length, 1)
+  assert.deepEqual(ui.requests[0].filters, [['id', 2], ['projeto_id', '42']])
 })

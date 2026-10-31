@@ -27,6 +27,13 @@ export default function Projetos() {
   const [tituloEditado, setTituloEditado] = useState("");
   
   const [projetoConfirmarExclusao, setProjetoConfirmarExclusao] = useState<number | null>(null);
+  const botoesEditar = useRef<Record<number, HTMLButtonElement | null>>({});
+  const botoesExcluir = useRef<Record<number, HTMLButtonElement | null>>({});
+  const restaurarAcao = useRef<{ id: number; tipo: "editar" | "excluir" } | null>(null);
+  const cancelarExclusaoButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (projetoConfirmarExclusao !== null) cancelarExclusaoButton.current?.focus();
+  }, [projetoConfirmarExclusao]);
 
   const buscarProjetos = useCallback(async (signal: AbortSignal) => ({
     ...await loadProjectPage(
@@ -54,7 +61,13 @@ export default function Projetos() {
       listHeading.current?.focus();
       focusAfterLoad.current = false;
     }
-  }, [ready]);
+    if (ready && !carregando && !requiresReload && !temFormularioAberto && restaurarAcao.current) {
+      const { id, tipo } = restaurarAcao.current;
+      const button = tipo === "editar" ? botoesEditar.current[id] : botoesExcluir.current[id];
+      button?.focus();
+      restaurarAcao.current = null;
+    }
+  }, [ready, carregando, requiresReload, temFormularioAberto]);
 
   const atualizarLista = (page: number) => {
     focusAfterLoad.current = true;
@@ -89,7 +102,16 @@ export default function Projetos() {
     setProjetoConfirmarExclusao(null); 
   };
 
+  const cancelarFormulario = () => {
+    if (carregando || requiresReload) return;
+    if (projetoEditando !== null) restaurarAcao.current = { id: projetoEditando, tipo: "editar" };
+    else if (projetoConfirmarExclusao !== null) restaurarAcao.current = { id: projetoConfirmarExclusao, tipo: "excluir" };
+    setProjetoEditando(null);
+    setProjetoConfirmarExclusao(null);
+  };
+
   const salvarEdicao = async (id: number) => {
+    if (!ready || carregando || requiresReload || projetoEditando !== id) return;
     if (!tituloEditado.trim()) return toast.error(<span lang={locale}>{p("O nome da obra não pode ficar vazio.")}</span>);
     await run({
       key: "projetos",
@@ -99,12 +121,14 @@ export default function Projetos() {
         .select("id, titulo, user_id, criado_em").single<Projeto>(),
       onConfirmed: (projeto) => {
         setResult(prev => prev && ({ ...prev, rows: prev.rows.map(p => p.id === id ? projeto : p) }));
+        restaurarAcao.current = { id, tipo: "editar" };
         setProjetoEditando(null);
       },
     });
   };
 
   const confirmarExclusaoProjeto = async (id: number) => {
+    if (!ready || carregando || requiresReload || projetoConfirmarExclusao !== id) return;
     await run({
       key: "projetos",
       loading: "Excluindo obra...",
@@ -198,9 +222,16 @@ export default function Projetos() {
                 {/* LÓGICA DE INTERFACE: MODO EDIÇÃO, MODO EXCLUSÃO OU VISUALIZAÇÃO PADRÃO */}
                 {projetoEditando === projeto.id ? (
                   /* --- MODO EDIÇÃO --- */
-                  <div className="col-span-12 flex flex-col sm:flex-row gap-3 animate-in fade-in">
+                  <form className="col-span-12 flex flex-col gap-3" aria-label={p("Editar {name}", { name: projeto.titulo })}
+                    aria-busy={carregando} onSubmit={event => { event.preventDefault(); void salvarEdicao(projeto.id); }}
+                    onKeyDown={event => {
+                      if (event.key === "Escape" && !carregando && !requiresReload) {
+                        event.preventDefault(); event.stopPropagation(); cancelarFormulario();
+                      }
+                    }}>
+                    <label htmlFor={`titulo-obra-${projeto.id}`} className="text-sm font-bold text-zinc-900">{p("Nome da Obra")}</label>
                     <input
-                      type="text"
+                      id={`titulo-obra-${projeto.id}`} type="text"
                       className="flex-1 p-3 border border-orange-300 rounded-xl text-zinc-900 outline-none focus:ring-2 focus:ring-orange-600 bg-orange-50 disabled:opacity-50"
                       aria-label={p("Nome da Obra")}
                       value={tituloEditado}
@@ -209,25 +240,32 @@ export default function Projetos() {
                       autoFocus
                     />
                     <div className="flex gap-2">
-                      <button onClick={() => setProjetoEditando(null)} disabled={carregando} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-zinc-100 text-zinc-600 font-bold rounded-xl hover:bg-zinc-200 transition">
+                      <button type="button" onClick={cancelarFormulario} disabled={carregando} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-zinc-100 text-zinc-600 font-bold rounded-xl hover:bg-zinc-200 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900">
                         <X size={18} /> {p("Cancelar")}
                       </button>
-                      <button onClick={() => salvarEdicao(projeto.id)} disabled={carregando} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition">
+                      <button type="submit" disabled={carregando} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-emerald-800 text-white font-bold rounded-xl hover:bg-emerald-700 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900">
                         <Save size={18} /> {p("Salvar")}
                       </button>
                     </div>
-                  </div>
+                  </form>
                 ) : projetoConfirmarExclusao === projeto.id ? (
                   /* --- MODO EXCLUSÃO --- */
-                  <div className="col-span-12 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in p-2">
-                    <p className="text-red-600 font-bold text-sm text-center sm:text-left">
+                  <div role="group" aria-labelledby={`excluir-obra-${projeto.id}`} aria-describedby={`impacto-obra-${projeto.id}`}
+                    aria-busy={carregando}
+                    onKeyDown={event => {
+                      if (event.key === "Escape" && !carregando && !requiresReload) {
+                        event.preventDefault(); event.stopPropagation(); cancelarFormulario();
+                      }
+                    }} className="col-span-12 space-y-3 rounded-xl border border-red-300 bg-red-50 p-4">
+                    <p id={`excluir-obra-${projeto.id}`} className="font-bold text-zinc-900">{p("Excluir {name}?", { name: projeto.titulo })}</p>
+                    <p id={`impacto-obra-${projeto.id}`} className="text-sm text-zinc-700">
                       {p('Todos os dados de "{name}" serão perdidos. Confirmar exclusão?', { name: projeto.titulo })}
                     </p>
                     <div className="flex w-full sm:w-auto gap-2">
-                      <button onClick={() => setProjetoConfirmarExclusao(null)} disabled={carregando} className="flex-1 sm:flex-none px-4 py-2 bg-zinc-200 text-zinc-800 font-bold rounded-xl hover:bg-zinc-300 transition">
+                      <button ref={cancelarExclusaoButton} type="button" onClick={cancelarFormulario} disabled={carregando} className="flex-1 sm:flex-none min-h-11 px-4 py-2 bg-zinc-200 text-zinc-800 font-bold rounded-xl hover:bg-zinc-300 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900">
                         {p("Cancelar")}
                       </button>
-                      <button onClick={() => confirmarExclusaoProjeto(projeto.id)} disabled={carregando} className="flex-1 sm:flex-none px-4 py-2 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition">
+                      <button type="button" onClick={() => confirmarExclusaoProjeto(projeto.id)} disabled={carregando} className="flex-1 sm:flex-none min-h-11 px-4 py-2 bg-red-700 text-white font-bold rounded-xl hover:bg-red-800 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900">
                         {p("Sim, Excluir")}
                       </button>
                     </div>
@@ -260,14 +298,14 @@ export default function Projetos() {
                         <button 
                           disabled={carregando || temFormularioAberto} onClick={() => iniciarEdicao(projeto)}
                           className="min-h-11 min-w-11 p-2 text-zinc-700 hover:text-blue-800 rounded-lg hover:bg-blue-50 transition-colors focus-visible:outline-2 focus-visible:outline-blue-800"
-                          type="button" aria-label={p("Editar {name}", { name: projeto.titulo })} title={p("Editar")}
+                          ref={node => { botoesEditar.current[projeto.id] = node; }} type="button" aria-label={p("Editar {name}", { name: projeto.titulo })} title={p("Editar")}
                         >
                           <Edit2 size={18} />
                         </button>
                         <button 
                           disabled={carregando || temFormularioAberto} onClick={() => setProjetoConfirmarExclusao(projeto.id)}
                           className="min-h-11 min-w-11 p-2 text-zinc-700 hover:text-red-800 rounded-lg hover:bg-red-50 transition-colors focus-visible:outline-2 focus-visible:outline-red-800"
-                          type="button" aria-label={p("Excluir {name}", { name: projeto.titulo })} title={p("Excluir")}
+                          ref={node => { botoesExcluir.current[projeto.id] = node; }} type="button" aria-label={p("Excluir {name}", { name: projeto.titulo })} title={p("Excluir")}
                         >
                           <Trash2 size={18} />
                         </button>

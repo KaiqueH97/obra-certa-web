@@ -89,5 +89,18 @@ anunciam o nome do registro. Roteiro:
 [edição acessível de materiais](./acessibilidade-edicao-materiais.md).
 
 A revisão global de contraste e leitor de tela permanece pendente. Esta etapa
-não certifica conformidade do aplicativo inteiro; o fluxo de foco na edição e
-confirmação de exclusão de projetos ainda merece revisão própria.
+não certifica conformidade do aplicativo inteiro. O fluxo de obras foi tratado
+na etapa abaixo.
+
+
+## Acessibilidade da edição e exclusão de obras
+
+A edição usa formulário com label visível e envio por Enter. Cancelar ou Escape
+devolvem foco à ação da mesma obra; salvar confirmado devolve foco ao Editar.
+A confirmação de exclusão recebe foco em Cancelar, identifica a obra e associa
+a descrição da perda dos dados. Gravações pendentes continuam bloqueando
+cancelamento e reenvio. Após excluir e reler, o foco vai ao título da lista.
+
+Testes locais cobrem os fluxos com Supabase simulado. A validação real de teclado,
+leitor de tela e apresentação mobile permanece manual conforme o
+[roteiro de edição e exclusão de obras](./acessibilidade-edicao-obras.md).

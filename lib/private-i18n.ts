@@ -249,6 +249,7 @@ const english = {
   "Materiais": "Materials",
   "Equipe": "Team",
   "Lucro Atual": "Current profit",
+  "Seções da obra": "Project sections",
   "Orçamento": "Budget",
   "Caixa": "Cash flow",
   "Tarefas": "Tasks",

@@ -334,18 +334,18 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
         </div>
       )}
 
-      {/* MENU DE ABAS (Mobile) */}
-      <div className="lg:hidden flex bg-zinc-200 p-1 rounded-xl shadow-inner gap-1">
-        <button onClick={() => setAbaAtiva("materiais")} className={`flex-1 py-3 flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg font-bold text-xs sm:text-sm transition-all ${abaAtiva === "materiais" ? "bg-white text-orange-600 shadow-sm" : "text-zinc-600"}`}>
-          <ShoppingCart size={18} /> {p("Orçamento")}
+      {/* Seleção de seção no mobile; no desktop as três colunas ficam visíveis. */}
+      <nav aria-label={p("Seções da obra")} className="lg:hidden flex bg-zinc-200 p-1 rounded-xl shadow-inner gap-1">
+        <button type="button" aria-pressed={abaAtiva === "materiais"} aria-controls={`materiais-obra-${projetoId}`} onClick={() => setAbaAtiva("materiais")} className={`min-h-11 flex-1 py-3 flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg font-bold text-xs sm:text-sm transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 ${abaAtiva === "materiais" ? "bg-white text-orange-800 shadow-sm" : "text-zinc-700"}`}>
+          <ShoppingCart aria-hidden="true" size={18} /> {p("Orçamento")}
         </button>
-        <button onClick={() => setAbaAtiva("caixa")} className={`flex-1 py-3 flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg font-bold text-xs sm:text-sm transition-all ${abaAtiva === "caixa" ? "bg-white text-emerald-600 shadow-sm" : "text-zinc-600"}`}>
-          <Wallet size={18} /> {p("Caixa")}
+        <button type="button" aria-pressed={abaAtiva === "caixa"} aria-controls={`caixa-obra-${projetoId}`} onClick={() => setAbaAtiva("caixa")} className={`min-h-11 flex-1 py-3 flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg font-bold text-xs sm:text-sm transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 ${abaAtiva === "caixa" ? "bg-white text-emerald-800 shadow-sm" : "text-zinc-700"}`}>
+          <Wallet aria-hidden="true" size={18} /> {p("Caixa")}
         </button>
-        <button onClick={() => setAbaAtiva("tarefas")} className={`flex-1 py-3 flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg font-bold text-xs sm:text-sm transition-all ${abaAtiva === "tarefas" ? "bg-white text-blue-600 shadow-sm" : "text-zinc-600"}`}>
-          <CheckSquare size={18} /> {p("Tarefas")}
+        <button type="button" aria-pressed={abaAtiva === "tarefas"} aria-controls={`tarefas-obra-${projetoId}`} onClick={() => setAbaAtiva("tarefas")} className={`min-h-11 flex-1 py-3 flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg font-bold text-xs sm:text-sm transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 ${abaAtiva === "tarefas" ? "bg-white text-blue-800 shadow-sm" : "text-zinc-700"}`}>
+          <CheckSquare aria-hidden="true" size={18} /> {p("Tarefas")}
         </button>
-      </div>
+      </nav>
 
       {carregando ? (
         <div className="p-12 flex justify-center">
@@ -356,7 +356,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           
           {/* COLUNA 1: MATERIAIS */}
-          <div className={`${abaAtiva === "materiais" ? "block" : "hidden"} lg:block space-y-6`}>
+          <div id={`materiais-obra-${projetoId}`} role="region" aria-label={p("Orçamento")} className={`${abaAtiva === "materiais" ? "block" : "hidden"} lg:block space-y-6`}>
             <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden flex flex-col max-h-175">
               <div className="p-4 border-b border-zinc-200 bg-zinc-50 flex justify-between items-center">
                 <h2 ref={materiaisHeading} tabIndex={-1} className="font-bold text-zinc-900">{p("Lista de Materiais")}</h2>
@@ -445,7 +445,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
           </div>
 
           {/* COLUNA 2: FINANCEIRO E CAIXA */}
-          <div className={`${abaAtiva === "caixa" ? "block" : "hidden"} lg:block space-y-6`}>
+          <div id={`caixa-obra-${projetoId}`} role="region" aria-label={p("Caixa")} className={`${abaAtiva === "caixa" ? "block" : "hidden"} lg:block space-y-6`}>
             <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden flex flex-col max-h-175">
               <div className="p-4 border-b border-zinc-200 bg-zinc-50 flex items-center gap-2">
                 <Wallet size={20} className="text-emerald-700" />
@@ -562,7 +562,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
           </div>
 
           {/* COLUNA 3: TAREFAS */}
-          <div className={`${abaAtiva === "tarefas" ? "block" : "hidden"} lg:block space-y-6`}>
+          <div id={`tarefas-obra-${projetoId}`} role="region" aria-label={p("Tarefas")} className={`${abaAtiva === "tarefas" ? "block" : "hidden"} lg:block space-y-6`}>
             <ProjectTasks key={projetoId} projetoId={projetoId} />
           </div>
 

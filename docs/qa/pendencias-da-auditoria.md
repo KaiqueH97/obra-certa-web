@@ -116,3 +116,13 @@ lançamento com troca de idioma. Veja o
 
 A medição global de contraste e a validação real com leitor de tela permanecem
 pendentes; esta alteração não certifica conformidade do aplicativo inteiro.
+
+## Navegação acessível entre seções da obra
+
+O seletor mobile agora informa a seleção por `aria-pressed` e associa os botões
+às regiões nomeadas de Orçamento, Caixa e Tarefas. O foco do teclado ficou
+explícito e as cores dos textos foram escurecidas. O desktop mantém as três
+colunas visíveis; a troca de seção mantém rascunhos sem novas requisições.
+Roteiro: [navegação entre seções](./navegacao-secoes-obra.md).
+
+A validação real dos breakpoints, leitor de tela e contraste continua pendente.

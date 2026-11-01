@@ -454,7 +454,8 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
               
               <div className="p-4 border-b border-zinc-200 bg-white">
                 <form onSubmit={registrarTransacao} className="flex flex-col gap-3">
-                  <select className="p-3 border border-zinc-300 rounded-xl text-sm font-bold outline-none bg-zinc-50 text-zinc-900 focus:ring-2 focus:ring-emerald-600" disabled={bloquearCaixa} aria-label={p("Tipo de lançamento")} value={novaTransacao.tipo} onChange={(e) => { setFuncionarioSelecionado(null); setNovaTransacao({ ...novaTransacao, tipo: e.target.value }); }}>
+                  <label htmlFor={`tipo-caixa-${projetoId}`} className="text-sm font-bold text-zinc-900">{p("Tipo de lançamento")}</label>
+                  <select id={`tipo-caixa-${projetoId}`} className="min-h-11 p-3 border border-zinc-300 rounded-xl text-sm font-bold outline-none bg-zinc-50 text-zinc-900 focus:ring-2 focus:ring-emerald-700" disabled={bloquearCaixa} aria-label={p("Tipo de lançamento")} value={novaTransacao.tipo} onChange={(e) => { setFuncionarioSelecionado(null); setNovaTransacao({ ...novaTransacao, tipo: e.target.value }); }}>
                     <option value="RECEBIMENTO_CLIENTE">{p("Entrada: Dinheiro do Cliente")}</option>
                     <option value="PAGAMENTO_FUNCIONARIO">{p("Saída: Pagamento da Equipe")}</option>
                   </select>
@@ -465,30 +466,35 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
                   )}
 
                   <div className="flex flex-col sm:flex-row gap-3">
-                    <input 
-                      type="text" 
-                      className="sm:w-1/2 p-3 border border-zinc-300 rounded-xl text-sm text-zinc-900 placeholder-zinc-500 outline-none focus:ring-2 focus:ring-emerald-600 transition-all" 
-                      placeholder={novaTransacao.tipo === "RECEBIMENTO_CLIENTE" ? p("Ex: Sinal / 1ª Parcela") : p("Ex: Adiantamento / 3 dias")}
-                      disabled={bloquearCaixa} aria-label={p("Descrição")} value={novaTransacao.descricao}
-                      onChange={(e) => setNovaTransacao({ ...novaTransacao, descricao: e.target.value })} 
-                      required 
-                    />
-                    {/* VALOR */}
-                    <div className="flex items-center bg-white border border-zinc-300 rounded-xl px-3 sm:w-44 focus-within:ring-2 focus-within:ring-emerald-600 transition-all">
-                      <span className="text-zinc-700 text-sm font-bold">R$</span>
-                      <input 
-                        type="text" 
-                        inputMode="decimal" 
-                        className="w-full py-3 pl-2 outline-none text-right text-sm font-bold text-zinc-900 placeholder-zinc-400 bg-transparent" 
-                        disabled={bloquearCaixa} aria-label={p("Valor em reais")} value={novaTransacao.valor}
-                        onChange={(e) => setNovaTransacao({ ...novaTransacao, valor: e.target.value })} 
-                        placeholder={p("0,00")}
-                        required 
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <label htmlFor={`descricao-caixa-${projetoId}`} className="block text-sm font-bold text-zinc-900">{p("Descrição")}</label>
+                      <input
+                        id={`descricao-caixa-${projetoId}`} type="text"
+                        className="min-h-11 w-full p-3 border border-zinc-300 rounded-xl text-sm text-zinc-900 placeholder-zinc-600 outline-none focus:ring-2 focus:ring-emerald-700 transition-all"
+                        placeholder={novaTransacao.tipo === "RECEBIMENTO_CLIENTE" ? p("Ex: Sinal / 1ª Parcela") : p("Ex: Adiantamento / 3 dias")}
+                        disabled={bloquearCaixa} aria-label={p("Descrição")} value={novaTransacao.descricao}
+                        onChange={(e) => setNovaTransacao({ ...novaTransacao, descricao: e.target.value })}
+                        required
                       />
                     </div>
+                    <div className="min-w-0 sm:w-44 space-y-2">
+                      <label htmlFor={`valor-caixa-${projetoId}`} className="block text-sm font-bold text-zinc-900">{p("Valor em reais")}</label>
+                      <div className="flex min-h-11 items-center bg-white border border-zinc-300 rounded-xl px-3 focus-within:ring-2 focus-within:ring-emerald-700 transition-all">
+                        <span aria-hidden="true" className="text-zinc-700 text-sm font-bold">R$</span>
+                        <input
+                          id={`valor-caixa-${projetoId}`} type="text"
+                          inputMode="decimal"
+                          className="min-w-0 w-full py-3 pl-2 outline-none text-right text-sm font-bold text-zinc-900 placeholder-zinc-600 bg-transparent"
+                          disabled={bloquearCaixa} aria-label={p("Valor em reais")} value={novaTransacao.valor}
+                          onChange={(e) => setNovaTransacao({ ...novaTransacao, valor: e.target.value })}
+                          placeholder={p("0,00")}
+                          required
+                        />
+                      </div>
+                    </div>
                   </div>
-                  
-                  <button type="submit" disabled={bloquearCaixa} className="bg-emerald-700 text-white font-bold p-3 rounded-xl hover:bg-emerald-800 transition flex items-center justify-center gap-2 text-sm disabled:opacity-50 mt-1 shadow-sm">
+
+                  <button type="submit" disabled={bloquearCaixa} className="min-h-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800 bg-emerald-700 text-white font-bold p-3 rounded-xl hover:bg-emerald-800 transition flex items-center justify-center gap-2 text-sm disabled:opacity-50 mt-1 shadow-sm">
                     <Plus size={16}/> {p("Lançar no Caixa")}
                   </button>
                 </form>

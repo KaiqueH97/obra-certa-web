@@ -377,6 +377,15 @@ test('detalhes: idioma preserva dados, aba, confirmação e texto cadastrado no 
 
 test('detalhes: lançamento em inglês preserva descrição e BRL ao trocar durante envio', async t => {
   const ui = await mount(t, cases[1])
+  const assertLabels = names => {
+    for (const name of names) {
+      const control = document.querySelector(`[aria-label="${name}"]`)
+      assert.equal(control.labels.length, 1)
+      assert.equal(control.labels[0].textContent, name)
+      assert.equal(control.labels[0].control, control)
+    }
+  }
+  assertLabels(['Tipo de lançamento', 'Descrição', 'Valor em reais'])
   await act(() => base['@/lib/locale-store'].setLocale('en'))
   const fill = async (label, value) => act(() => {
     const input = document.querySelector(`[aria-label="${label}"]`)
@@ -385,6 +394,7 @@ test('detalhes: lançamento em inglês preserva descrição e BRL ao trocar dura
   })
   await fill('Description', 'Sinal da obra')
   await fill('Amount in BRL', '150,50')
+  assertLabels(['Transaction type', 'Description', 'Amount in BRL'])
   let resolve
   ui.setResponse(new Promise(done => { resolve = done }))
   const form = document.querySelector('[aria-label="Description"]').closest('form')
@@ -394,6 +404,7 @@ test('detalhes: lançamento em inglês preserva descrição e BRL ao trocar dura
   assert.equal(ui.requests[0].payload[0].descricao, 'Sinal da obra')
   assert.equal(ui.requests[0].payload[0].tipo, 'RECEBIMENTO_CLIENTE')
   await act(() => base['@/lib/locale-store'].setLocale('pt-BR'))
+  assertLabels(['Tipo de lançamento', 'Descrição', 'Valor em reais'])
   assert.equal(document.querySelector('[aria-label="Descrição"]').value, 'Sinal da obra')
   assert.ok(document.querySelector('[aria-label="Descrição"]').disabled)
   await act(() => resolve({ data: { id: 44, ...ui.requests[0].payload[0] }, error: null }))

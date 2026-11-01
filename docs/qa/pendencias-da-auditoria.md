@@ -1,4 +1,4 @@
-# Pendências confirmadas — atualização de 30/10/2026
+# Pendências confirmadas — atualização de 01/11/2026
 
 Revisão direcionada do código atual, após paginação de obras e equipe. Não é
 uma nova certificação de segurança nem uma revisão das configurações remotas.
@@ -104,3 +104,15 @@ cancelamento e reenvio. Após excluir e reler, o foco vai ao título da lista.
 Testes locais cobrem os fluxos com Supabase simulado. A validação real de teclado,
 leitor de tela e apresentação mobile permanece manual conforme o
 [roteiro de edição e exclusão de obras](./acessibilidade-edicao-obras.md).
+
+## Acessibilidade do formulário do caixa
+
+Tipo de lançamento, descrição e valor têm rótulos visíveis associados aos
+controles, preservados após preenchimento e traduzidos para inglês. O formulário
+recebeu foco de teclado mais evidente e placeholders mais escuros. Valores
+continuam em BRL. A associação dos rótulos foi verificada no teste existente de
+lançamento com troca de idioma. Veja o
+[roteiro do formulário do caixa](./acessibilidade-formulario-caixa.md).
+
+A medição global de contraste e a validação real com leitor de tela permanecem
+pendentes; esta alteração não certifica conformidade do aplicativo inteiro.

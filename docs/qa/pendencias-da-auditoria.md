@@ -1,4 +1,4 @@
-# Pendências confirmadas — atualização de 01/11/2026
+# Pendências confirmadas — atualização de 02/11/2026
 
 Revisão direcionada do código atual, após paginação de obras e equipe. Não é
 uma nova certificação de segurança nem uma revisão das configurações remotas.
@@ -126,3 +126,14 @@ colunas visíveis; a troca de seção mantém rascunhos sem novas requisições.
 Roteiro: [navegação entre seções](./navegacao-secoes-obra.md).
 
 A validação real dos breakpoints, leitor de tela e contraste continua pendente.
+
+## Validação da leitura de obras
+
+A lista de obras agora rejeita título não textual, proprietário vazio ou não
+textual e data de criação ausente ou não interpretável. A tela usa o erro com
+retry existente, sem renderizar registros parciais. IDs e contagem continuam
+validados pela paginação comum. Veja o
+[roteiro de validação da lista](./validacao-lista-obras.md).
+
+Esta etapa cobre a leitura da lista. Gerar tipos a partir do schema real e revisar
+as demais fronteiras, incluindo respostas de gravação, continua pendente.

@@ -3,7 +3,7 @@ import test from 'node:test'
 import { loadTs } from './helpers/load-ts.mjs'
 const loads = loadTs(new URL('../lib/load-data.ts', import.meta.url))
 const pages = loadTs(new URL('../lib/pagination.ts', import.meta.url), { './load-data': loads })
-const { loadProjectPage, lastProjectPage } = loadTs(new URL('../lib/project-pagination.ts', import.meta.url), { './pagination': pages })
+const { loadProjectPage, lastProjectPage } = loadTs(new URL('../lib/project-pagination.ts', import.meta.url), { './pagination': pages, './load-data': loads })
 const rows = count => Array.from({ length: count }, (_, i) => ({ id: i + 1, titulo: `Obra ${i + 1}`, user_id: 'A', criado_em: '2026-01-01T00:00:00Z' }))
 const signal = () => new AbortController().signal
 
@@ -86,4 +86,25 @@ test('falha ao confirmar total após 416 não é convertida em lista vazia', asy
     ? { data: null, count: null, error: { code: 'PGRST103' } }
     : { data: null, count: null, error: { message: 'offline' } }, 1, signal()))
   assert.equal(calls, 2)
+})
+
+for (const [field, values] of Object.entries({
+  titulo: [null, undefined, 42, { texto: 'Obra' }],
+  user_id: [null, undefined, 42, '', '   '],
+  criado_em: [null, undefined, 42, '', 'data inválida'],
+})) {
+  test(`rejeita ${field} inválido mesmo com IDs e contagem corretos`, async () => {
+    for (const value of values) {
+      await assert.rejects(loadProjectPage(async () => ({
+        data: [{ ...rows(1)[0], [field]: value }], count: 1, error: null,
+      }), 0, signal()), { name: 'Error', message: 'A lista veio incompleta ou inconsistente. Tente novamente.' })
+    }
+  })
+}
+
+test('preserva nomes cadastrados e aceita timestamps do Supabase com fuso e microssegundos', async () => {
+  const data = [{ ...rows(1)[0], titulo: 'Reforma <b> {name} São João',
+    criado_em: '2026-11-02T10:15:30.123456-03:00' }]
+  const result = await loadProjectPage(async () => ({ data, count: 1, error: null }), 0, signal())
+  assert.deepEqual(result.rows, data)
 })

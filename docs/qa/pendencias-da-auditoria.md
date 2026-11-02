@@ -149,3 +149,15 @@ ocorrido no servidor. Roteiro:
 
 O executor aceita validação específica opcional. A aplicação dessa validação nas
 demais entidades e a geração de tipos do schema continuam pendentes.
+
+## Validação dos dados da equipe
+
+A leitura e a confirmação de criação/edição validam ID, nome, cargo e diária na
+projeção consultada. Cargo e diária nulos continuam aceitos. Edição e exclusão
+exigem o ID selecionado. Respostas de gravação incompatíveis preservam o
+formulário e bloqueiam reenvio até recarga; leitura inválida oferece retry.
+Roteiro: [validação da equipe](./validacao-equipe.md).
+
+O proprietário não faz parte dessa projeção; RLS continua responsável pelo
+isolamento. A validação das gravações de materiais, tarefas e caixa e a geração
+de tipos do schema permanecem pendentes.

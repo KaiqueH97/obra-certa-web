@@ -13,6 +13,7 @@ import Link from "next/link";
 import { MutationGuard } from "@/app/components/MutationGuard";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
 import { MutationError } from "@/lib/confirmed-mutation";
+import { LoadError } from "@/lib/load-data";
 import { parseMoney } from "@/lib/money";
 import toast from "react-hot-toast";
 import { Users, HardHat, DollarSign, Plus, Trash2, Edit2, X, Save, ArrowLeft } from "lucide-react";
@@ -22,6 +23,16 @@ interface Funcionario {
   nome: string;
   cargo: string | null;
   valor_diaria: number | null;
+}
+
+// Valida a projeção consultada; campos opcionais do banco continuam aceitando null.
+function isFuncionario(value: unknown): value is Funcionario {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const row = value as Partial<Funcionario>;
+  return typeof row.id === "number" && Number.isSafeInteger(row.id) && row.id > 0 &&
+    typeof row.nome === "string" &&
+    (row.cargo === null || typeof row.cargo === "string") &&
+    (row.valor_diaria === null || (typeof row.valor_diaria === "number" && Number.isFinite(row.valor_diaria)));
 }
 
 type TeamPage = PaginatedRows<Funcionario> & { revision: number };
@@ -50,14 +61,17 @@ export default function EquipePage() {
   const [editCargo, setEditCargo] = useState("");
   const [editDiaria, setEditDiaria] = useState("");
 
-  const carregarEquipe = useCallback(async (signal: AbortSignal): Promise<TeamPage> => ({
-    ...await loadPage<Funcionario>(
+  const carregarEquipe = useCallback(async (signal: AbortSignal): Promise<TeamPage> => {
+    const data = await loadPage<Funcionario>(
       (from, to) => supabase.from("funcionarios").select("id, nome, cargo, valor_diaria", { count: "exact" })
         .order("criado_em", { ascending: false }).order("id", { ascending: false }).range(from, to).abortSignal(signal),
       pagina, signal,
-    ),
-    revision,
-  }), [pagina, revision]);
+    );
+    if (data.rows.some(row => !isFuncionario(row))) {
+      throw new LoadError("A lista veio incompleta ou inconsistente. Tente novamente.");
+    }
+    return { ...data, revision };
+  }, [pagina, revision]);
   const aplicarPagina = useCallback((value: TeamPage) => {
     setResult(value);
     setPagina(Math.min(value.page, lastPage(value.total)));
@@ -106,6 +120,7 @@ export default function EquipePage() {
           valor_diaria: diaria.value, user_id: user.id,
         }]).select("id, nome, cargo, valor_diaria").single<Funcionario>();
       },
+      validate: isFuncionario,
       onConfirmed: () => {
         setNovoNome("");
         setNovoCargo("");
@@ -124,6 +139,7 @@ export default function EquipePage() {
   };
 
   const salvarEdicao = async (id: number) => {
+    if (!ready || salvando || requiresReload || editandoId !== id) return;
     if (!editNome.trim()) return toast.error(<span lang={locale}>{p("O nome não pode ficar vazio.")}</span>);
     const diaria = parseMoney(editDiaria, { allowEmpty: true });
     if (!diaria.ok) return toast.error(<span lang={message(diaria.error).lang}>{p("Diária")}: {message(diaria.error).text}</span>);
@@ -134,6 +150,7 @@ export default function EquipePage() {
       request: () => supabase.from("funcionarios").update({
         nome: editNome, cargo: editCargo, valor_diaria: diaria.value,
       }).eq("id", id).select("id, nome, cargo, valor_diaria").single<Funcionario>(),
+      validate: funcionario => isFuncionario(funcionario) && funcionario.id === id,
       onConfirmed: (funcionario) => {
         setResult(prev => prev && ({ ...prev, rows: prev.rows.map(item => item.id === id ? funcionario : item) }));
         setEditandoId(null);
@@ -147,12 +164,14 @@ export default function EquipePage() {
   };
 
   const executarExclusao = async (id: number) => {
+    if (!ready || salvando || requiresReload || excluindoId !== id) return;
     await run({
       key: "equipe",
       loading: "Removendo profissional...",
       success: "Profissional removido da equipe.",
       request: () => supabase.from("funcionarios").delete().eq("id", id)
         .select("id").single<{ id: number }>(),
+      validate: funcionario => funcionario.id === id,
       onConfirmed: () => {
         setExcluindoId(null);
         exclusaoTrigger.current = null;

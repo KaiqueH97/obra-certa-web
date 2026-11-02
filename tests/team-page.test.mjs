@@ -77,7 +77,7 @@ async function mount(t, count = 45) {
   const { default: Page } = loadTs(new URL('../app/(sistema)/equipe/page.tsx', import.meta.url), {
     ...base, 'lucide-react': icons, 'react-hot-toast': { default: toast },
     'next/link': { default: props => h('a', props) }, '@/lib/supabase': { supabase },
-    '@/lib/pagination': pages, '@/lib/money': money, '@/app/components/DeleteConfirmation': confirmation, '@/lib/confirmed-mutation': mutation,
+    '@/lib/load-data': loads, '@/lib/pagination': pages, '@/lib/money': money, '@/app/components/DeleteConfirmation': confirmation, '@/lib/confirmed-mutation': mutation,
     '@/app/hooks/useConfirmedMutation': actions, '@/app/hooks/useDataLoad': hooks,
     '@/app/components/LoadFeedback': feedback, '@/app/components/MutationGuard': guard,
   })
@@ -301,4 +301,64 @@ test('inglês preserva cargo, rascunho e BRL; confirmação mantém foco ao troc
   assert.equal(ui.reads.length, reads)
   await ui.click('Cancelar')
   assert.equal(document.activeElement.getAttribute('aria-label'), 'Excluir João')
+})
+
+for (const patch of [{ nome: null }, { cargo: 42 }, { cargo: undefined }, { valor_diaria: '150' }, { valor_diaria: undefined }, { valor_diaria: Infinity }]) {
+  test(`equipe: leitura inconsistente ${JSON.stringify(patch)} exige retry sem renderizar lista parcial`, async t => {
+    const ui = await mount(t)
+    ui.setRead(async () => ({ data: [{ ...record(1), ...patch }], count: 21, error: null }))
+    await ui.click('Próxima')
+    assert.match(document.querySelector('[role="alert"]').textContent, /incompleta ou inconsistente/)
+    assert.equal(names().length, 0)
+    assert.equal(document.querySelector('form'), null)
+    ui.setRead(null)
+    await ui.click('Tentar novamente')
+    assert.equal(names()[0], 'Profissional 25')
+    assert.equal(ui.writes.length, 0)
+  })
+}
+
+for (const [operation, responses] of [
+  ['insert', [{ id: 46 }, { ...record(46), valor_diaria: '150' }, { ...record(46), id: -1 }]],
+  ['update', [{ id: 45 }, record(44), { ...record(45), cargo: {} }, { ...record(45), valor_diaria: NaN }]],
+  ['delete', [{ id: 44 }]],
+]) {
+  for (const response of responses) {
+    test(`equipe: ${operation} com retorno inválido ${JSON.stringify(response)} não confirma nem permite repetir`, async t => {
+      const ui = await mount(t)
+      ui.setWrite(async () => ({ data: response, error: null }))
+      if (operation === 'insert') {
+        await ui.fill('#novo-nome', 'Novo profissional')
+        await ui.create()
+        assert.equal(document.getElementById('novo-nome').value, 'Novo profissional')
+      } else if (operation === 'update') {
+        await act(() => namedButton('Editar Profissional 45').click())
+        await ui.fill('[aria-label="Nome do profissional"]', 'Nome editado')
+        await act(() => namedButton('Salvar profissional').click())
+        assert.equal(document.querySelector('[aria-label="Nome do profissional"]').value, 'Nome editado')
+      } else {
+        await ui.removeFirst()
+        assert.ok(button('Confirmar exclusão'))
+        assert.ok(names().includes('Profissional 45'))
+      }
+      assert.equal(document.querySelector('fieldset').disabled, true)
+      assert.match(document.querySelector('[role="alert"]').textContent, /Ela pode ter sido concluída/)
+      assert.equal(ui.reads.length, 1)
+      assert.equal(ui.writes.length, 1)
+      assert.ok(!ui.notices.some(message => typeof message === 'string' && /cadastrado!|atualizado!|removido/.test(message)))
+      if (operation === 'insert') await ui.create()
+      else await act(() => (operation === 'update' ? namedButton('Salvar profissional') : button('Confirmar exclusão')).click())
+      assert.equal(ui.writes.length, 1)
+    })
+  }
+}
+
+test('equipe: edição aceita cargo e diária nulos retornados pelo banco', async t => {
+  const ui = await mount(t)
+  ui.setWrite(async () => ({ data: { ...record(45), cargo: null, valor_diaria: null }, error: null }))
+  await act(() => namedButton('Editar Profissional 45').click())
+  await act(() => namedButton('Salvar profissional').click())
+  assert.equal(document.querySelector('[aria-label="Nome do profissional"]'), null)
+  assert.match(document.body.textContent, /Não informada/)
+  assert.equal(ui.notices.at(-1), 'Profissional atualizado!')
 })

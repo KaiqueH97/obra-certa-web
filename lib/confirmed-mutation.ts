@@ -14,6 +14,8 @@ export type MutationOptions<T extends RecordWithId> = {
   loading: string;
   success: string;
   request: (signal: AbortSignal) => PromiseLike<MutationResponse<T>>;
+  // Validação específica da operação, antes de alterar a tela ou anunciar sucesso.
+  validate?: (record: T) => boolean;
   onConfirmed: (record: T) => void;
   onSettled?: () => void;
 };
@@ -95,6 +97,8 @@ export function createMutationRunner(
             (typeof data.id === "string" && data.id.length > 0))) {
           throw new Error(UNCONFIRMED_MESSAGE);
         }
+
+        if (options.validate && !options.validate(data)) throw new Error(UNCONFIRMED_MESSAGE);
 
         // A tela recebe exclusivamente a linha retornada pela própria gravação.
         confirmed = true;

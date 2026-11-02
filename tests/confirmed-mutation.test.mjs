@@ -340,3 +340,30 @@ test("cancelar a espera remove prazo pendente sem alertas depois da saída", asy
   assert.equal(f.unconfirmed.length, 0);
   assert.deepEqual(f.notices.map(n => n.type), ["loading", "dismiss"]);
 });
+
+for (const broken of [() => false, () => { throw new Error('Invalid response'); }]) {
+  test('validação específica inválida impede sucesso e bloqueia reenvio até recarga', async () => {
+    const f = fixture();
+    let calls = 0;
+    const options = { ...f.options(async () => { calls++; return { data: { id: 1 }, error: null }; }), validate: broken };
+    assert.equal(await f.runner.run(options), null);
+    assert.equal(f.confirmed.length, 0);
+    assert.deepEqual(f.notices.map(n => n.type), ['loading', 'error']);
+    assert.equal(f.notices.at(-1).message, UNCONFIRMED_MESSAGE);
+    assert.equal(f.unconfirmed.length, 1);
+    await f.runner.run(options);
+    assert.equal(calls, 1);
+  });
+}
+
+test('validação específica aceita o retorno antes da confirmação', async () => {
+  const f = fixture();
+  const saved = { id: 1, titulo: 'Nome retornado' };
+  let validated = false;
+  await f.runner.run({
+    ...f.options(async () => ({ data: saved, error: null })),
+    validate: record => { assert.equal(record, saved); validated = true; return true; },
+    onConfirmed: record => { assert.equal(validated, true); assert.equal(record, saved); },
+  });
+  assert.equal(f.notices.at(-1).type, 'success');
+});

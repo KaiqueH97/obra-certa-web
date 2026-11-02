@@ -6,7 +6,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase"; // Ajustado para o atalho correto da raiz
 import { useDataLoad } from "@/app/hooks/useDataLoad";
 import { LoadFeedback } from "@/app/components/LoadFeedback";
-import { loadProjectPage, lastProjectPage, PROJECT_PAGE_SIZE, type Projeto, type ProjectPage } from "@/lib/project-pagination";
+import { isProjeto, loadProjectPage, lastProjectPage, PROJECT_PAGE_SIZE, type Projeto, type ProjectPage } from "@/lib/project-pagination";
 import Link from "next/link";
 import { MutationGuard } from "@/app/components/MutationGuard";
 import { useConfirmedMutation } from "@/app/hooks/useConfirmedMutation";
@@ -78,6 +78,7 @@ export default function Projetos() {
   const criarProjeto = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ready || carregando || temFormularioAberto || requiresReload || !novoProjeto.trim()) return;
+    let usuarioId: string | null = null;
     await run({
       key: "projetos",
       loading: "Criando obra...",
@@ -86,9 +87,11 @@ export default function Projetos() {
         const { data: { user }, error } = await supabase.auth.getUser();
         signal.throwIfAborted();
         if (error || !user) throw new MutationError("Não foi possível validar sua sessão. Entre novamente.");
+        usuarioId = user.id;
         return supabase.from("projetos").insert([{ titulo: novoProjeto, user_id: user.id }])
           .select("id, titulo, user_id, criado_em").single<Projeto>();
       },
+      validate: projeto => isProjeto(projeto) && projeto.user_id === usuarioId,
       onConfirmed: () => {
         setNovoProjeto("");
         atualizarLista(0);
@@ -112,6 +115,8 @@ export default function Projetos() {
 
   const salvarEdicao = async (id: number) => {
     if (!ready || carregando || requiresReload || projetoEditando !== id) return;
+    const original = projetos.find(projeto => projeto.id === id);
+    if (!original) return;
     if (!tituloEditado.trim()) return toast.error(<span lang={locale}>{p("O nome da obra não pode ficar vazio.")}</span>);
     await run({
       key: "projetos",
@@ -119,6 +124,7 @@ export default function Projetos() {
       success: "Nome atualizado!",
       request: () => supabase.from("projetos").update({ titulo: tituloEditado }).eq("id", id)
         .select("id, titulo, user_id, criado_em").single<Projeto>(),
+      validate: projeto => isProjeto(projeto) && projeto.id === id && projeto.user_id === original.user_id,
       onConfirmed: (projeto) => {
         setResult(prev => prev && ({ ...prev, rows: prev.rows.map(p => p.id === id ? projeto : p) }));
         restaurarAcao.current = { id, tipo: "editar" };
@@ -135,6 +141,7 @@ export default function Projetos() {
       success: "Obra excluída com sucesso!",
       request: () => supabase.from("projetos").delete().eq("id", id)
         .select("id").single<{ id: number }>(),
+      validate: projeto => projeto.id === id,
       onConfirmed: () => {
         setProjetoConfirmarExclusao(null);
         atualizarLista(Math.min(pagina, lastProjectPage(Math.max(0, total - 1))));

@@ -369,3 +369,37 @@ test('obra com campos inválidos exibe erro recuperável, sem lista parcial nem 
   assert.equal(linkIds()[0], 25)
   assert.equal(ui.writes.length, 0)
 })
+
+for (const [operation, responses] of [
+  ['insert', [{ id: 46 }, { ...record(46), user_id: 'B' }, { ...record(46), id: -1 }]],
+  ['update', [{ id: 45 }, { ...record(44), titulo: 'Outro' }, { ...record(45), user_id: 'B' }, { ...record(45), criado_em: null }]],
+  ['delete', [{ id: 44 }]],
+]) {
+  for (const response of responses) {
+    test(`${operation}: resposta inconsistente ${JSON.stringify(response)} preserva formulário e bloqueia repetição`, async t => {
+      const ui = await mount(t)
+      ui.setWrite(async () => ({ data: response, error: null }))
+      if (operation === 'insert') {
+        await ui.fill('#nova-obra', 'Minha nova obra')
+        await ui.create()
+        assert.equal(document.getElementById('nova-obra').value, 'Minha nova obra')
+      } else if (operation === 'update') {
+        await act(() => document.querySelector('button[title="Editar"]').click())
+        await ui.fill('#titulo-obra-45', 'Novo nome')
+        await ui.click('Salvar')
+        assert.equal(document.getElementById('titulo-obra-45').value, 'Novo nome')
+      } else {
+        await ui.removeFirst()
+        assert.ok(button('Sim, Excluir'))
+      }
+      assert.equal(ui.writes.length, 1)
+      assert.equal(ui.reads.length, 1)
+      assert.equal(document.querySelector('fieldset').disabled, true)
+      assert.match(document.querySelector('[role="alert"]').textContent, /Ela pode ter sido concluída/)
+      assert.ok(!ui.notices.some(message => typeof message === 'string' && /sucesso|atualizado/.test(message)))
+      if (operation === 'insert') await ui.create()
+      else await ui.click(operation === 'update' ? 'Salvar' : 'Sim, Excluir')
+      assert.equal(ui.writes.length, 1)
+    })
+  }
+}

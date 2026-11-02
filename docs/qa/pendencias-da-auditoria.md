@@ -137,3 +137,15 @@ validados pela paginação comum. Veja o
 
 Esta etapa cobre a leitura da lista. Gerar tipos a partir do schema real e revisar
 as demais fronteiras, incluindo respostas de gravação, continua pendente.
+
+## Validação da confirmação de gravações de obras
+
+Criação e edição da lista de obras agora validam a linha retornada antes de
+anunciar sucesso. A criação confere o proprietário do envio; a edição confere
+ID e proprietário originais; a exclusão confere o ID selecionado. Respostas
+inconsistentes mantêm o formulário e exigem recarga, pois a gravação pode ter
+ocorrido no servidor. Roteiro:
+[validação das gravações de obras](./validacao-gravacoes-obras.md).
+
+O executor aceita validação específica opcional. A aplicação dessa validação nas
+demais entidades e a geração de tipos do schema continuam pendentes.

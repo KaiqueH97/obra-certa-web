@@ -14,6 +14,17 @@ import { MutationGuard } from "./MutationGuard";
 type Task = { id: number; nome: string; concluida: boolean | null; projeto_id: number };
 type Result = PaginatedRows<Task> & { revision: number };
 
+// Compartilhado entre leitura e gravação; null é permitido pelo schema em concluida.
+function isTaskForProject(value: unknown, projetoId: string): value is Task {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const row = value as Partial<Task>;
+  return typeof row.id === "number" && Number.isSafeInteger(row.id) && row.id > 0 &&
+    typeof row.nome === "string" &&
+    (row.concluida === null || typeof row.concluida === "boolean") &&
+    typeof row.projeto_id === "number" && Number.isSafeInteger(row.projeto_id) &&
+    row.projeto_id > 0 && String(row.projeto_id) === projetoId;
+}
+
 export function ProjectTasks({ projetoId }: { projetoId: string }) {
   const { locale, p } = usePrivateLocale();
   const { run, isBusy, requiresReload } = useConfirmedMutation();
@@ -29,9 +40,7 @@ export function ProjectTasks({ projetoId }: { projetoId: string }) {
       .select("id, nome, concluida, projeto_id", { count: "exact" }).eq("projeto_id", projetoId)
       .order("criado_em", { ascending: false }).order("id", { ascending: false })
       .range(from, to).abortSignal(signal), page, signal);
-    if (data.rows.some(row => typeof row.nome !== "string" ||
-      (row.concluida !== null && typeof row.concluida !== "boolean") ||
-      String(row.projeto_id) !== projetoId)) {
+    if (data.rows.some(row => !isTaskForProject(row, projetoId))) {
       throw new LoadError("A lista veio incompleta ou inconsistente. Tente novamente.");
     }
     return { ...data, revision };
@@ -67,6 +76,7 @@ export function ProjectTasks({ projetoId }: { projetoId: string }) {
       success: "Tarefa adicionada!",
       request: () => supabase.from("tarefas").insert([{ nome: draft.trim(), projeto_id: projetoId }])
         .select("id, nome, concluida, projeto_id").single<Task>(),
+      validate: task => isTaskForProject(task, projetoId),
       onConfirmed: () => {
         setDraft("");
         refresh(0);
@@ -75,13 +85,15 @@ export function ProjectTasks({ projetoId }: { projetoId: string }) {
   };
   const toggle = async (task: Task) => {
     if (blocked) return;
+    const concluida = !task.concluida;
     await run({
       key: "tarefa",
       loading: "Atualizando tarefa...",
       success: "Tarefa atualizada!",
-      request: () => supabase.from("tarefas").update({ concluida: !task.concluida })
+      request: () => supabase.from("tarefas").update({ concluida })
         .eq("id", task.id).eq("projeto_id", projetoId)
         .select("id, nome, concluida, projeto_id").single<Task>(),
+      validate: saved => isTaskForProject(saved, projetoId) && saved.id === task.id && saved.concluida === concluida,
       // Relê também o total: outra sessão pode ter alterado a mesma página.
       onConfirmed: () => refresh(page),
     });

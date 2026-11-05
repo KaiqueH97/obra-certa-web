@@ -54,7 +54,7 @@ async function mount(t, count = 45) {
           if (writeOverride) return writeOverride(query)
           let saved
           if (query.operation === 'insert') {
-            saved = { ...record((records[0]?.id ?? 0) + 1), ...query.payload[0] }
+            saved = { ...record((records[0]?.id ?? 0) + 1), ...query.payload[0], projeto_id: Number(query.payload[0].projeto_id) }
             records = [saved, ...records]
           } else {
             records = records.map(row => row.id === query.id ? { ...row, ...query.payload } : row)
@@ -235,4 +235,65 @@ test('tarefas: resposta de gravação após sair não emite sucesso nem relê li
   await act(() => pending.resolve({ data: { ...record(45), concluida: true }, error: null }))
   assert.equal(ui.reads.length, reads)
   assert.deepEqual(ui.notices, [])
+})
+
+for (const [operation, responses] of [
+  ['insert', [{ id: 46 }, { ...record(46), projeto_id: 99 }, { ...record(46), concluida: undefined }, { ...record(46), nome: null }, { ...record(46), id: -1 }]],
+  ['update', [{ id: 45 }, { ...record(44), concluida: true }, { ...record(45), projeto_id: 99, concluida: true }, record(45), { ...record(45), concluida: null }]],
+]) {
+  for (const response of responses) {
+    test(`tarefas: ${operation} rejeita retorno inconsistente ${JSON.stringify(response)} sem confirmar ou repetir`, async t => {
+      const ui = await mount(t)
+      ui.setWrite(async () => ({ data: response, error: null }))
+      await ui.fill('input', 'Rascunho preservado')
+      if (operation === 'insert') await ui.create()
+      else await ui.toggle()
+      assert.equal(document.querySelector('input').value, 'Rascunho preservado')
+      assert.equal(document.querySelector('[aria-pressed]').getAttribute('aria-pressed'), 'false')
+      assert.equal(document.querySelector('fieldset').disabled, true)
+      assert.match(document.querySelector('[role="alert"]').textContent, /Ela pode ter sido concluída/)
+      assert.equal(ui.reads.length, 1)
+      assert.equal(ui.writes.length, 1)
+      assert.ok(!ui.notices.some(message => typeof message === 'string' && /adicionada!|atualizada!/.test(message)))
+      await ui.create(); await ui.toggle()
+      assert.equal(ui.writes.length, 1)
+      await ui.locale('en')
+      assert.match(document.querySelector('[role="alert"]').textContent, /It may have completed/)
+      assert.equal(document.querySelector('fieldset').disabled, true)
+    })
+  }
+}
+
+test('tarefas: retorno válido com concluida nula na criação confirma e relê a lista', async t => {
+  const ui = await mount(t)
+  const saved = { ...record(46), nome: 'Nova tarefa', concluida: null }
+  ui.setWrite(async () => { ui.setRecords([saved]); return { data: saved, error: null } })
+  await ui.fill('input', saved.nome)
+  await ui.create()
+  assert.equal(document.querySelector('input').value, '')
+  assert.equal(document.querySelector('[aria-pressed]').getAttribute('aria-pressed'), 'false')
+  assert.equal(ui.notices.at(-1), 'Tarefa adicionada!')
+})
+
+test('tarefas: leitura rejeita projeto com tipo incorreto e recupera por retry', async t => {
+  const ui = await mount(t)
+  ui.setRead(async () => ({ data: [{ ...record(1), projeto_id: '42' }], count: 21, error: null }))
+  await ui.click('Próxima')
+  assert.match(document.querySelector('[role="alert"]').textContent, /incompleta ou inconsistente/)
+  assert.equal(names().length, 0)
+  ui.setRead(null)
+  await ui.click('Tentar novamente')
+  assert.equal(names()[0], 'Tarefa 25')
+  assert.equal(ui.writes.length, 0)
+})
+
+test('tarefas: concluir tarefa nula e reabrir exige os estados true e false retornados', async t => {
+  const ui = await mount(t, [{ ...record(1), concluida: null }])
+  await ui.toggle()
+  assert.equal(document.querySelector('[aria-pressed]').getAttribute('aria-pressed'), 'true')
+  await ui.toggle()
+  assert.equal(document.querySelector('[aria-pressed]').getAttribute('aria-pressed'), 'false')
+  assert.deepEqual(ui.writes.map(write => write.payload.concluida), [true, false])
+  assert.equal(ui.reads.length, 3)
+  assert.equal(ui.notices.filter(notice => notice === 'Tarefa atualizada!').length, 2)
 })

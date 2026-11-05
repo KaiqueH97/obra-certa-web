@@ -1,4 +1,4 @@
-# Pendências confirmadas — atualização de 02/11/2026
+# Pendências confirmadas — atualização de 04/11/2026
 
 Revisão direcionada do código atual, após paginação de obras e equipe. Não é
 uma nova certificação de segurança nem uma revisão das configurações remotas.
@@ -161,3 +161,14 @@ Roteiro: [validação da equipe](./validacao-equipe.md).
 O proprietário não faz parte dessa projeção; RLS continua responsável pelo
 isolamento. A validação das gravações de materiais, tarefas e caixa e a geração
 de tipos do schema permanecem pendentes.
+
+## Validação das confirmações de tarefas
+
+Criação e alteração do checklist agora validam a linha retornada e o vínculo com
+a obra. Alterações também exigem o ID selecionado e o estado de conclusão
+solicitado. Respostas inconsistentes preservam o rascunho e exigem recarga antes
+de novo envio. A leitura compartilha o validador e aceita conclusão nula,
+conforme o schema. Roteiro: [validação das tarefas](./validacao-tarefas.md).
+
+A validação das gravações de materiais e caixa e a geração de tipos do schema
+continuam pendentes.

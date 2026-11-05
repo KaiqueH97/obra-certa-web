@@ -110,3 +110,15 @@ test('cotação rejeita dados parciais e aceita todos os itens, além do limite 
   assert.throws(() => cash.parseMaterialQuote({ projeto_id: 42, total: 1205, materiais: materiais.slice(0, 20) }, '42'))
   assert.throws(() => cash.parseMaterialQuote({ projeto_id: 99, total: 0, materiais: [] }, '42'))
 })
+
+test('validador de material aceita preço nulo e rejeita projeções incompletas ou de outra obra', () => {
+  assert.equal(cash.isMaterialForProject(row(1), '42'), true)
+  assert.equal(cash.isMaterialForProject({ ...row(1), preco_total: 150.5 }, '42'), true)
+  for (const value of [null, [], { id: 1 }, { ...row(1), id: -1 },
+    { ...row(1), projeto_id: 99 }, { ...row(1), projeto_id: '42' },
+    { ...row(1), nome: null }, { ...row(1), quantidade: undefined },
+    { ...row(1), preco_total: undefined }, { ...row(1), preco_total: '150' },
+    { ...row(1), preco_total: Infinity }]) {
+    assert.equal(cash.isMaterialForProject(value, '42'), false)
+  }
+})

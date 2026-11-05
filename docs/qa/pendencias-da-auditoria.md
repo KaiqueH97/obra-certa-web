@@ -172,3 +172,14 @@ conforme o schema. Roteiro: [validação das tarefas](./validacao-tarefas.md).
 
 A validação das gravações de materiais e caixa e a geração de tipos do schema
 continuam pendentes.
+
+## Validação da edição, preço e exclusão de materiais
+
+Gravações nos detalhes da obra validam a projeção retornada e o ID/vínculo com a
+obra. Salvar preço exige o valor enviado; excluir exige o ID selecionado. Resposta
+incompatível não anuncia sucesso nem relê totais e exige recarga. A leitura
+compartilha o validador, preservando preço nulo permitido pelo schema. Roteiro:
+[validação das gravações de materiais](./validacao-gravacoes-materiais.md).
+
+Permanecem pendentes a criação pela calculadora, as gravações do caixa e a geração
+de tipos do schema real.

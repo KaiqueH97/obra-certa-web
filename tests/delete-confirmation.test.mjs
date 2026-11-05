@@ -746,3 +746,50 @@ test('seções da obra: seleção acessível preserva rascunho e foco entre seç
   assert.equal(ui.requests.length, 0)
   assert.deepEqual([ui.reads.length, ui.cashReads.length, ui.materialReads.length], reads)
 })
+
+for (const [operation, responses] of [
+  ['edit', [{ id: 7 }, { ...cases[1].data.materiais[0], id: 8 }, { ...cases[1].data.materiais[0], projeto_id: 99 }, { ...cases[1].data.materiais[0], quantidade: null }]],
+  ['price', [{ id: 7 }, { ...cases[1].data.materiais[0], preco_total: 100 }, { ...cases[1].data.materiais[0], preco_total: null }]],
+  ['delete', [{ id: 8 }]],
+]) {
+  for (const response of responses) {
+    test(`material: ${operation} não confirma retorno incompatível ${JSON.stringify(response)}`, async t => {
+      const ui = await mount(t, cases[1])
+      ui.setResponse({ data: response, error: null })
+      const reads = ui.materialReads.length
+      let form
+      if (operation === 'edit') {
+        await act(() => document.querySelector('[aria-label="Editar Cimento"]').click())
+        const input = document.querySelector('[aria-label="Nome"]')
+        await act(() => {
+          Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, 'Cimento revisado')
+          input.dispatchEvent(new window.Event('input', { bubbles: true }))
+        })
+        form = input.form
+        await act(() => form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })))
+        assert.equal(input.value, 'Cimento revisado')
+        assert.ok(document.body.contains(form))
+      } else if (operation === 'price') {
+        const input = document.querySelector('[aria-label="Custo Registrado: Cimento"]')
+        await act(() => {
+          Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, '150,50')
+          input.dispatchEvent(new window.Event('input', { bubbles: true }))
+        })
+        await act(() => input.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true })))
+      } else {
+        await ui.open()
+        await act(() => ui.confirm().click())
+        assert.ok(ui.group())
+      }
+      assert.equal(ui.requests.length, 1)
+      assert.equal(ui.materialReads.length, reads)
+      assert.equal(document.querySelector('fieldset').disabled, true)
+      assert.match(document.querySelector('[role="alert"]').textContent, /Ela pode ter sido concluída/)
+      assert.ok(!ui.notices.some(n => n[0] === 'success'))
+      if (form) await act(() => form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })))
+      else if (operation === 'delete') await act(() => ui.confirm().click())
+      else await act(() => document.querySelector('[aria-label="Custo Registrado: Cimento"]').dispatchEvent(new window.FocusEvent('focusout', { bubbles: true })))
+      assert.equal(ui.requests.length, 1)
+    })
+  }
+}

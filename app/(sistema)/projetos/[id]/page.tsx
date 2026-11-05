@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { useDataLoad } from "@/app/hooks/useDataLoad";
 import { LoadFeedback } from "@/app/components/LoadFeedback";
 import { useMaterialsPage } from "@/app/hooks/useMaterialsPage";
-import { MATERIALS_PAGE_SIZE, type Material } from "@/lib/materials-page";
+import { isMaterialForProject, MATERIALS_PAGE_SIZE, type Material } from "@/lib/materials-page";
 import { MaterialQuote } from "@/app/components/MaterialQuote";
 import { useCashPage } from "@/app/hooks/useCashPage";
 import { CASH_PAGE_SIZE, type CashTransaction } from "@/lib/cash-page";
@@ -158,6 +158,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
         request: () => supabase.from("materiais_projeto")
           .update({ preco_total: precoFinal }).eq("id", id).eq("projeto_id", projetoId)
           .select("id, nome, quantidade, projeto_id, preco_total").single<Material>(),
+        validate: material => isMaterialForProject(material, projetoId) && material.id === id && material.preco_total === precoFinal,
         onConfirmed: () => atualizarMateriais(materiaisPagina),
         // Também restaura o preço após erro, mas apenas enquanto esta tela estiver ativa.
         onSettled: () => limparPrecoEditado(id),
@@ -181,7 +182,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
   };
 
   const salvarEdicaoMaterial = async (id: number) => {
-    if (bloquearMateriais) return;
+    if (bloquearMateriais || materialEditando !== id) return;
     await run({
       key: `material-${id}`,
       loading: "Salvando alterações...",
@@ -189,6 +190,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
       request: () => supabase.from("materiais_projeto")
         .update({ nome: nomeEditado, quantidade: qtdEditada }).eq("id", id).eq("projeto_id", projetoId)
         .select("id, nome, quantidade, projeto_id, preco_total").single<Material>(),
+      validate: material => isMaterialForProject(material, projetoId) && material.id === id,
       onConfirmed: () => {
         atualizarMateriais(materiaisPagina);
         setMaterialEditando(prev => prev === id ? null : prev);
@@ -209,6 +211,7 @@ function DetalhesDoProjeto({ projetoId }: { projetoId: string }) {
       success: "Material excluído!",
       request: () => supabase.from("materiais_projeto").delete()
         .eq("id", id).eq("projeto_id", projetoId).select("id").single<{ id: number }>(),
+      validate: material => material.id === id,
       onConfirmed: () => {
         atualizarMateriais(materiaisPagina);
         setMaterialExcluindo(null);

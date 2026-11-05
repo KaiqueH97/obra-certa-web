@@ -9,6 +9,14 @@ const count = (v: unknown): v is number => typeof v === "number" && Number.isSaf
 const amount = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= Number.MAX_SAFE_INTEGER / 100;
 const invalid = () => new LoadError("Não foi possível confirmar os materiais da obra. Tente novamente.");
 
+// Valida a mesma projeção usada pela página e pelas gravações de materiais.
+export function isMaterialForProject(value: unknown, projectId: string): value is Material {
+  return object(value) && count(value.id) && value.id > 0 &&
+    typeof value.nome === "string" && typeof value.quantidade === "string" &&
+    count(value.projeto_id) && value.projeto_id > 0 && value.projeto_id === Number(projectId) &&
+    (value.preco_total === null || amount(value.preco_total));
+}
+
 function validateRows(rows: unknown[]): asserts rows is QuoteMaterial[] {
   let previous = Infinity;
   for (const row of rows) {
@@ -23,8 +31,8 @@ export function parseMaterialsPage(value: unknown, projectId: string, requestedP
     value.pagina !== Math.min(requestedPage, Math.max(0, Math.ceil(value.total / MATERIALS_PAGE_SIZE) - 1)) ||
     value.materiais.length !== Math.min(MATERIALS_PAGE_SIZE, Math.max(0, value.total - value.pagina * MATERIALS_PAGE_SIZE))) throw invalid();
   validateRows(value.materiais);
-  for (const row of value.materiais as unknown as Record<string, unknown>[]) {
-    if (row.projeto_id !== value.projeto_id || (row.preco_total !== null && !amount(row.preco_total))) throw invalid();
+  for (const row of value.materiais) {
+    if (!isMaterialForProject(row, projectId)) throw invalid();
   }
   return value as MaterialsPage;
 }
